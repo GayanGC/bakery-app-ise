@@ -86,4 +86,23 @@ router.put('/:id', async (req, res) => {
     }
 });
 
+// DELETE API - Remove a product from the bakery
+router.delete('/:id', async (req, res) => {
+    try {
+        // 1. Find the product by ID and delete it directly from the database
+        const deletedProduct = await Product.findByIdAndDelete(req.params.id);
+
+        // 2. If the product was found and deleted, send a success message
+        if (deletedProduct) {
+            res.status(200).json({ message: "Product deleted successfully! 🗑️" });
+        } else {
+            // 3. If no product was found with that ID
+            res.status(404).json({ message: "Product not found!" });
+        }
+    } catch (error) {
+        console.error("Delete Product Error:", error);
+        res.status(500).json({ message: "Server Error while deleting product" });
+    }
+});
+
 module.exports = router;
