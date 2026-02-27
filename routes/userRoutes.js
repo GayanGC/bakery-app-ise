@@ -11,17 +11,17 @@ router.post('/register', async (req, res) => {
   try {
     const { name, email, phone, password, role } = req.body;
 
-    // Email eken user kenek kalinma innawada balanawa
+    // Check if a user with this email already exists in the database
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ message: "Me email eken kalin register wela thiyenne!" });
+      return res.status(400).json({ message: "A user with this email already exists!" });
     }
 
-    // Password eka encrypt (hash) karanawa security ekata
+    // Encrypt (hash) the password for security
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Aluth user wa hadanawa
+    // Create a new user instance
     const newUser = new User({
       name,
       email,
@@ -30,40 +30,41 @@ router.post('/register', async (req, res) => {
       role: role || 'Customer'
     });
 
-    // Database ekata save karanawa
+    // Save the new user to the database
     await newUser.save();
     res.status(201).json({ message: "User registered successfully! ✅" });
 
   } catch (error) {
     console.error("Registration Error:", error);
-    res.status(500).json({ message: "Server Error ekak awa" });
+    res.status(500).json({ message: "Server Error occurred" });
   }
 });
+
 // POST API - User Login
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // 1. Email eka database eke thiyenawada balanawa
+    // 1. Check if the user's email exists in the database
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ message: "Me email eken user kenek na!" });
+      return res.status(400).json({ message: "No user found with this email!" });
     }
 
-    // 2. Password eka match wenawada balanawa (bcrypt walin)
+    // 2. Check if the provided password matches the stored hashed password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ message: "Password eka waradiy!" });
+      return res.status(400).json({ message: "Invalid password!" });
     }
 
-    // 3. Dekama hari nam, Token eka hadanawa
+    // 3. If both match, generate a JWT token
     const token = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: '1d' } // Token eka dawasakin expire wenawa
+      { expiresIn: '1d' } // Token expires in 1 day
     );
 
-    // 4. Success message ekai, token ekai user details ekai yawanawa
+    // 4. Send success message along with the token and user details
     res.status(200).json({
       message: "Login successful! 🎉",
       token,
@@ -77,7 +78,7 @@ router.post('/login', async (req, res) => {
 
   } catch (error) {
     console.error("Login Error:", error);
-    res.status(500).json({ message: "Server Error ekak awa" });
+    res.status(500).json({ message: "Server Error occurred" });
   }
 });
 
@@ -101,7 +102,7 @@ router.get('/profile', protect, async (req, res) => {
     }
   } catch (error) {
     console.error("Profile Fetch Error:", error);
-    res.status(500).json({ message: "Server Error" });
+    res.status(500).json({ message: "Server Error occurred" });
   }
 });
 
@@ -141,9 +142,8 @@ router.put('/profile', protect, async (req, res) => {
     }
   } catch (error) {
     console.error("Profile Update Error:", error);
-    res.status(500).json({ message: "Server Error" });
+    res.status(500).json({ message: "Server Error occurred" });
   }
 });
-
 
 module.exports = router;

@@ -3,6 +3,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const cors = require("cors");
+const productRoutes = require('./routes/productRoutes');
 const { MongoMemoryServer } = require("mongodb-memory-server");
 
 // Load environment variables from .env file
@@ -39,6 +40,7 @@ async function connectDB() {
 // --------------- Routes ---------------
 const userRoutes = require('./routes/userRoutes');
 app.use('/api/users', userRoutes);
+app.use('/api/products', productRoutes);
 
 // --------------- Test Route ---------------
 app.get("/", (req, res) => {
