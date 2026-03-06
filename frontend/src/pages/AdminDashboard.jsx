@@ -1,6 +1,7 @@
 // frontend/src/pages/AdminDashboard.jsx
 import { useState, useEffect } from 'react';
 import api from '../api/axios';
+import FeedbackList from '../components/FeedbackList';
 
 // ── PIN Modal ─────────────────────────────────────────────
 function PinModal({ onConfirm, onCancel, loading }) {
@@ -362,6 +363,9 @@ export default function AdminDashboard() {
                         </div>
                     )}
                 </div>
+
+                {/* ── Customer Reviews ─────────────────────────── */}
+                <FeedbackList />
 
             </main>
 
