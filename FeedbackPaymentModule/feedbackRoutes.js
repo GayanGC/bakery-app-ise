@@ -9,20 +9,45 @@ const { checkRole } = require('../middleware/checkRole');
 // POST / — Customer submits feedback for a Delivered order
 router.post('/', protect, async (req, res) => {
     try {
+        console.log('🔍 Feedback submission request:', { body: req.body, user: req.user._id });
+        
         const { orderId, rating, comment } = req.body;
         if (!orderId || !rating) return res.status(400).json({ message: 'orderId and rating are required.' });
         if (rating < 1 || rating > 5) return res.status(400).json({ message: 'Rating must be between 1 and 5.' });
+        
+        console.log('🔍 Looking for order:', orderId);
         const order = await Order.findById(orderId);
         if (!order) return res.status(404).json({ message: 'Order not found.' });
         if (order.user.toString() !== req.user._id.toString()) return res.status(403).json({ message: 'You can only review your own orders.' });
         if (order.status !== 'Delivered') return res.status(400).json({ message: 'Feedback only allowed on Delivered orders.' });
+        
+        console.log('🔍 Checking for existing feedback for order:', orderId);
         const existing = await Feedback.findOne({ order: orderId });
         if (existing) return res.status(400).json({ message: 'Feedback already submitted for this order.' });
-        const feedback = new Feedback({ order: orderId, user: req.user._id, rating, comment: comment || '' });
+        
+        console.log('🔍 Creating new feedback document...');
+        const feedback = new Feedback({ 
+            order: orderId, 
+            user: req.user._id, 
+            rating, 
+            comment: comment || '' 
+        });
+        
+        console.log('🔍 Saving feedback to database...');
         const saved = await feedback.save();
-        console.log(`⭐ Feedback: Order ${orderId} | ${rating}/5 | by ${req.user.email}`);
+        
+        console.log(`⭐✅ Feedback SUCCESSFULLY saved: Order ${orderId} | ${rating}/5 | by ${req.user.email}`);
+        console.log('🔍 Saved feedback ID:', saved._id);
+        
         res.status(201).json({ message: 'Thank you for your feedback! ⭐', feedback: saved });
     } catch (err) {
+        console.error('❌ FEEDBACK SAVE ERROR:', {
+            message: err.message,
+            stack: err.stack,
+            code: err.code,
+            name: err.name
+        });
+        
         if (err.code === 11000) return res.status(400).json({ message: 'Feedback already submitted.' });
         res.status(500).json({ message: 'Server Error', detail: err.message });
     }

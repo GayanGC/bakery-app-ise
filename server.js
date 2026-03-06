@@ -17,11 +17,27 @@ app.use(express.json());
 // ── MongoDB ─────────────────────────────────────────────────────
 async function connectDB() {
   try {
+    // Try Atlas first
     await mongoose.connect(process.env.MONGO_URI);
     console.log('✅ MongoDB Atlas connected successfully.');
   } catch (err) {
-    console.error('❌ MongoDB Connection Error:', err.message);
-    process.exit(1);
+    console.warn('⚠️ Atlas connection failed, trying local MongoDB...');
+    try {
+      // Fallback to local MongoDB
+      await mongoose.connect('mongodb://localhost:27017/bakery-system');
+      console.log('✅ Local MongoDB connected successfully.');
+    } catch (localErr) {
+      console.error('❌ Both Atlas and Local MongoDB failed:');
+      console.error('Atlas Error:', err.message);
+      console.error('Local Error:', localErr.message);
+      console.log('\n💡 Quick Solutions:');
+      console.log('1. Add your IP to Atlas whitelist: https://www.mongodb.com/docs/atlas/security-whitelist/');
+      console.log('2. Install local MongoDB: https://www.mongodb.com/try/download/community');
+      console.log('3. Update .env with working MongoDB URI');
+      
+      // Don't exit, let the app run for testing routes
+      console.log('\n🚀 Continuing without database for route testing...');
+    }
   }
 }
 connectDB();

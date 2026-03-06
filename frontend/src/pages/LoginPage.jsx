@@ -82,7 +82,7 @@ function BakeryHero() {
 
             {/* Floating badge */}
             <div className="absolute top-8 left-8 bg-white/10 border border-white/20 backdrop-blur-sm rounded-2xl px-4 py-2">
-                <p className="text-xs text-white/80 font-semibold">🥐 6 Roles · MERN Stack</p>
+                <p className="text-xs text-white/80 font-semibold">🥐 Are You Hungry?</p>
             </div>
         </div>
     );
