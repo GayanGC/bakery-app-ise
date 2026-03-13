@@ -39,3 +39,7 @@ bakery-system-ise/
 ├── FeedbackPaymentModule/  # Customer Reviews & Payments
 ├── frontend/               # React Application
 └── server.js               # Entry Point
+<img width="1919" height="986" alt="image" src="https://github.com/user-attachments/assets/f7a70f58-3266-4624-92ca-b39253962cba" />
+
+<img width="1919" height="976" alt="image" src="https://github.com/user-attachments/assets/9cc75b75-7a81-4fe1-95fc-42fcd9d1809a" />
+
