@@ -3,35 +3,165 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../api/axios';
 
+// ── Validation rules ────────────────────────────────────────
+const VALID_ROLES = ['Customer', 'Staff', 'Manager', 'Admin', 'InventoryManager', 'InventorySeller'];
+const PIN_REQUIRED_ROLES = ['Admin', 'Manager'];
+
+const validators = {
+    name: (v) => {
+        if (!v.trim()) return 'Full name is required';
+        if (!/^[a-zA-Z\s]+$/.test(v.trim())) return 'Name can only contain letters and spaces';
+        return '';
+    },
+    email: (v) => {
+        if (!v.trim()) return 'Email address is required';
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim())) return 'Enter a valid email address';
+        return '';
+    },
+    phone: (v) => {
+        if (!v.trim()) return 'Phone number is required';
+        if (!/^\d{10}$/.test(v.trim())) return 'Phone must be exactly 10 digits (numbers only)';
+        return '';
+    },
+    role: (v) => {
+        if (!VALID_ROLES.includes(v)) return 'Please select a valid role';
+        return '';
+    },
+    password: (v) => {
+        if (!v) return 'Password is required';
+        if (v.length < 8) return 'Password must be at least 8 characters';
+        if (!/[a-zA-Z]/.test(v)) return 'Password must include at least one letter';
+        if (!/[0-9]/.test(v)) return 'Password must include at least one number';
+        return '';
+    },
+    pin: (v, role) => {
+        const required = PIN_REQUIRED_ROLES.includes(role);
+        if (required && !v) return 'PIN is required for Admin and Manager roles';
+        if (v && !/^\d{4}$/.test(v)) return 'PIN must be exactly 4 digits';
+        return '';
+    },
+};
+
 export default function RegisterPage() {
-    const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', pin: '', role: 'Customer' });
+    const [form, setForm] = useState({
+        name: '', email: '', phone: '', password: '', pin: '', role: 'Customer'
+    });
+    const [fieldErrors, setFieldErrors] = useState({
+        name: '', email: '', phone: '', role: '', password: '', pin: ''
+    });
+    const [touched, setTouched] = useState({});
     const [showPwd, setShowPwd] = useState(false);
     const [showPin, setShowPin] = useState(false);
-    const [error, setError] = useState('');
+    const [serverError, setServerError] = useState('');
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
 
-    const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+    // ── Validate a single field ──────────────────────────────
+    const validateField = (name, value, currentForm = form) => {
+        if (name === 'pin') return validators.pin(value, currentForm.role);
+        return validators[name] ? validators[name](value) : '';
+    };
 
-    const handleRegister = async (e) => {
-        e.preventDefault();
-        setError('');
-        if (form.pin && !/^\d{4}$/.test(form.pin)) {
-            setError('PIN must be exactly 4 digits (numbers only).');
+    // ── Handle input changes ─────────────────────────────────
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+
+        // PIN: silently strip non-digits, cap at 4
+        if (name === 'pin') {
+            const digits = value.replace(/\D/g, '').slice(0, 4);
+            const newForm = { ...form, pin: digits };
+            setForm(newForm);
+            if (touched.pin) {
+                setFieldErrors(prev => ({ ...prev, pin: validateField('pin', digits, newForm) }));
+            }
             return;
         }
+
+        // Phone: strip non-digits, cap at 10
+        if (name === 'phone') {
+            const digits = value.replace(/\D/g, '').slice(0, 10);
+            const newForm = { ...form, phone: digits };
+            setForm(newForm);
+            if (touched.phone) {
+                setFieldErrors(prev => ({ ...prev, phone: validateField('phone', digits) }));
+            }
+            return;
+        }
+
+        const newForm = { ...form, [name]: value };
+        setForm(newForm);
+
+        // Re-validate PIN when role changes (PIN requirement may change)
+        if (name === 'role') {
+            setFieldErrors(prev => ({
+                ...prev,
+                role: validateField('role', value),
+                pin: touched.pin ? validators.pin(newForm.pin, value) : prev.pin,
+            }));
+            return;
+        }
+
+        if (touched[name]) {
+            setFieldErrors(prev => ({ ...prev, [name]: validateField(name, value, newForm) }));
+        }
+    };
+
+    // ── Mark field as touched on blur and validate ───────────
+    const handleBlur = (e) => {
+        const { name, value } = e.target;
+        setTouched(prev => ({ ...prev, [name]: true }));
+        setFieldErrors(prev => ({ ...prev, [name]: validateField(name, value) }));
+    };
+
+    // ── Submit ────────────────────────────────────────────────
+    const handleRegister = async (e) => {
+        e.preventDefault();
+        setServerError('');
+
+        // Validate all fields and mark all as touched
+        const allTouched = Object.keys(form).reduce((acc, k) => ({ ...acc, [k]: true }), {});
+        setTouched(allTouched);
+
+        const errors = {
+            name:     validators.name(form.name),
+            email:    validators.email(form.email),
+            phone:    validators.phone(form.phone),
+            role:     validators.role(form.role),
+            password: validators.password(form.password),
+            pin:      validators.pin(form.pin, form.role),
+        };
+        setFieldErrors(errors);
+
+        const hasErrors = Object.values(errors).some(Boolean);
+        if (hasErrors) return;
+
         setLoading(true);
         try {
             await api.post('/users/register', form);
             navigate('/login');
         } catch (err) {
-            setError(err.response?.data?.message || 'Registration failed. Try again.');
+            setServerError(err.response?.data?.message || 'Registration failed. Please try again.');
         } finally {
             setLoading(false);
         }
     };
 
-    const inputCls = "block w-full px-4 py-3 bg-brand-50 border border-brand-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all";
+    // ── Styles ────────────────────────────────────────────────
+    const inputCls = (field) =>
+        `block w-full px-4 py-3 bg-brand-50 border rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 transition-all ${
+            fieldErrors[field]
+                ? 'border-red-400 focus:ring-red-400 bg-red-50'
+                : 'border-brand-200 focus:ring-brand-500'
+        }`;
+
+    const FieldError = ({ field }) =>
+        fieldErrors[field] ? (
+            <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                <span>⚠</span> {fieldErrors[field]}
+            </p>
+        ) : null;
+
+    const pinRequired = PIN_REQUIRED_ROLES.includes(form.role);
 
     return (
         <div className="flex items-center justify-center min-h-screen bg-brand-50 py-12 px-4">
@@ -48,33 +178,56 @@ export default function RegisterPage() {
                     <p className="mt-1 text-sm text-slate-500">Join the Bakery Management system.</p>
                 </div>
 
-                {error && (
-                    <div className="p-3 text-sm text-red-700 bg-red-50 rounded-xl border border-red-200">{error}</div>
+                {/* Server-level error banner */}
+                {serverError && (
+                    <div className="p-3 text-sm text-red-700 bg-red-50 rounded-xl border border-red-200 flex items-center gap-2">
+                        <span>❌</span> {serverError}
+                    </div>
                 )}
 
-                <form className="space-y-4" onSubmit={handleRegister}>
-                    {/* Name */}
+                <form className="space-y-4" onSubmit={handleRegister} noValidate>
+
+                    {/* ── Full Name ── */}
                     <div>
-                        <label className="block text-sm font-semibold text-brand-800 mb-1">Full Name</label>
-                        <input type="text" name="name" required placeholder="John Doe"
-                            className={inputCls} value={form.name} onChange={handleChange} />
+                        <label className="block text-sm font-semibold text-brand-800 mb-1">
+                            Full Name <span className="text-red-500">*</span>
+                        </label>
+                        <input type="text" name="name" placeholder="John Doe"
+                            className={inputCls('name')} value={form.name}
+                            onChange={handleChange} onBlur={handleBlur} />
+                        <FieldError field="name" />
                     </div>
-                    {/* Email */}
+
+                    {/* ── Email ── */}
                     <div>
-                        <label className="block text-sm font-semibold text-brand-800 mb-1">Email Address</label>
-                        <input type="email" name="email" required placeholder="john@example.com"
-                            className={inputCls} value={form.email} onChange={handleChange} />
+                        <label className="block text-sm font-semibold text-brand-800 mb-1">
+                            Email Address <span className="text-red-500">*</span>
+                        </label>
+                        <input type="email" name="email" placeholder="john@example.com"
+                            className={inputCls('email')} value={form.email}
+                            onChange={handleChange} onBlur={handleBlur} />
+                        <FieldError field="email" />
                     </div>
-                    {/* Phone */}
+
+                    {/* ── Phone ── */}
                     <div>
-                        <label className="block text-sm font-semibold text-brand-800 mb-1">Phone</label>
-                        <input type="tel" name="phone" placeholder="07X-XXX-XXXX"
-                            className={inputCls} value={form.phone} onChange={handleChange} />
+                        <label className="block text-sm font-semibold text-brand-800 mb-1">
+                            Phone Number <span className="text-red-500">*</span>
+                        </label>
+                        <input type="tel" name="phone" placeholder="0712345678"
+                            maxLength={10}
+                            className={inputCls('phone')} value={form.phone}
+                            onChange={handleChange} onBlur={handleBlur} />
+                        <FieldError field="phone" />
                     </div>
-                    {/* Role */}
+
+                    {/* ── Role ── */}
                     <div>
-                        <label className="block text-sm font-semibold text-brand-800 mb-1">Role</label>
-                        <select name="role" className={inputCls} value={form.role} onChange={handleChange}>
+                        <label className="block text-sm font-semibold text-brand-800 mb-1">
+                            Role <span className="text-red-500">*</span>
+                        </label>
+                        <select name="role" className={inputCls('role')} value={form.role}
+                            onChange={handleChange} onBlur={handleBlur}>
                             <option value="Customer">Customer</option>
                             <option value="Staff">Staff</option>
                             <option value="Manager">Manager</option>
@@ -82,38 +235,52 @@ export default function RegisterPage() {
                             <option value="InventoryManager">Inventory Manager</option>
                             <option value="InventorySeller">Inventory Seller</option>
                         </select>
+                        <FieldError field="role" />
                     </div>
-                    {/* Password */}
+
+                    {/* ── Password ── */}
                     <div>
-                        <label className="block text-sm font-semibold text-brand-800 mb-1">Password</label>
+                        <label className="block text-sm font-semibold text-brand-800 mb-1">
+                            Password <span className="text-red-500">*</span>
+                        </label>
                         <div className="relative">
-                            <input type={showPwd ? 'text' : 'password'} name="password" required placeholder="••••••••"
-                                className={`${inputCls} pr-12`} value={form.password} onChange={handleChange} />
+                            <input type={showPwd ? 'text' : 'password'} name="password"
+                                placeholder="Min. 8 chars with a letter and number"
+                                className={`${inputCls('password')} pr-12`} value={form.password}
+                                onChange={handleChange} onBlur={handleBlur} />
                             <button type="button" tabIndex={-1}
                                 onClick={() => setShowPwd(s => !s)}
                                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-brand-600 text-lg">
                                 {showPwd ? '🙈' : '👁️'}
                             </button>
                         </div>
+                        <FieldError field="password" />
                     </div>
-                    {/* PIN */}
+
+                    {/* ── Security PIN ── */}
                     <div>
                         <label className="block text-sm font-semibold text-brand-800 mb-1">
                             4-Digit Security PIN
-                            <span className="ml-1 text-xs font-normal text-slate-400">(required for sensitive actions)</span>
+                            {pinRequired
+                                ? <span className="ml-1 text-xs font-bold text-red-500">(required for {form.role})</span>
+                                : <span className="ml-1 text-xs font-normal text-slate-400">(optional)</span>
+                            }
                         </label>
                         <div className="relative">
-                            <input type={showPin ? 'text' : 'password'} name="pin" required
-                                maxLength={4} pattern="\d{4}" placeholder="••••"
-                                className={`${inputCls} pr-12 tracking-widest text-center text-xl`}
-                                value={form.pin} onChange={handleChange} />
+                            <input type={showPin ? 'text' : 'password'} name="pin"
+                                maxLength={4} placeholder="••••"
+                                className={`${inputCls('pin')} pr-12 tracking-widest text-center text-xl`}
+                                value={form.pin} onChange={handleChange} onBlur={handleBlur} />
                             <button type="button" tabIndex={-1}
                                 onClick={() => setShowPin(s => !s)}
                                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-brand-600 text-lg">
                                 {showPin ? '🙈' : '👁️'}
                             </button>
                         </div>
-                        <p className="text-xs text-slate-400 mt-1">Used to confirm deletions and sensitive operations.</p>
+                        <FieldError field="pin" />
+                        {!fieldErrors.pin && (
+                            <p className="text-xs text-slate-400 mt-1">Used to confirm deletions and sensitive operations.</p>
+                        )}
                     </div>
 
                     <button type="submit" disabled={loading}

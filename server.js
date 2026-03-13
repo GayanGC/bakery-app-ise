@@ -10,9 +10,16 @@ const fs = require('fs');
 
 const app = express();
 
+// ── Ensure uploads/ directory exists ────────────────────────────
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
+
 // ── Middleware ──────────────────────────────────────────────────
 app.use(cors());
 app.use(express.json());
+
+// ── Static: serve uploaded product images ───────────────────────
+app.use('/uploads', express.static(uploadsDir));
 
 // ── MongoDB ─────────────────────────────────────────────────────
 async function connectDB() {

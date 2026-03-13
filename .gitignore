@@ -1,3 +1,6 @@
 node_modules/
 .env
 .idea/
+# Uploaded product images – keep the folder but not its contents
+uploads/*
+!uploads/.gitkeep

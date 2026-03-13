@@ -4,6 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { useCart } from '../context/CartContext';
 
+const SERVER_URL = 'http://localhost:5000';
+
+
 function ShopPage() {
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -75,9 +78,25 @@ function ShopPage() {
                                 style={{ animationDelay: `${idx * 0.07}s` }}>
                                 <div className="h-1.5 bg-gradient-to-r from-brand-400 to-brand-800 rounded-t-3xl" />
                                 <div className="p-5 flex-1 flex flex-col">
-                                    {/* Product icon placeholder */}
-                                    <div className="w-full h-28 bg-gradient-to-br from-brand-50 to-brand-100 rounded-2xl flex items-center justify-center mb-4 text-5xl">
-                                        🧁
+                                    {/* Product image / fallback */}
+                                    <div className="w-full h-28 rounded-2xl overflow-hidden mb-4 bg-gradient-to-br from-brand-50 to-brand-100 flex items-center justify-center">
+                                        {product.image ? (
+                                            <img
+                                                src={`${SERVER_URL}${product.image}`}
+                                                alt={product.name}
+                                                className="w-full h-full object-cover"
+                                                onError={(e) => {
+                                                    e.target.style.display = 'none';
+                                                    e.target.nextSibling.style.display = 'flex';
+                                                }}
+                                            />
+                                        ) : null}
+                                        <span
+                                            className="text-5xl flex items-center justify-center w-full h-full"
+                                            style={{ display: product.image ? 'none' : 'flex' }}
+                                        >
+                                            🧁
+                                        </span>
                                     </div>
                                     <div className="flex justify-between items-start mb-1">
                                         <h3 className="text-base font-bold text-brand-800 line-clamp-1"

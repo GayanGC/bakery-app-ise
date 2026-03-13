@@ -32,7 +32,7 @@ const feedbackSchema = new mongoose.Schema({
 });
 
 // Index for better query performance
-feedbackSchema.index({ order: 1 });
+// Note: { order: 1 } index is created automatically by unique: true above
 feedbackSchema.index({ user: 1 });
 feedbackSchema.index({ createdAt: -1 });
 
