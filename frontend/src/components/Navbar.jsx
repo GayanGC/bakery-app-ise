@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import ProductImage from '../components/ProductImage';
 
 // ── Role badge colours ──────────────────────────────────────────
 const roleBadge = {
@@ -137,7 +138,8 @@ export default function Navbar() {
 
                             {/* User name + role tag */}
                             {user && (
-                                <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-brand-700">
+                                <Link to="/profile"
+                                    className="hidden sm:flex items-center gap-3 pl-3 border-l border-brand-700 hover:opacity-90 transition-opacity">
                                     <div className="text-right">
                                         <p className="text-xs font-bold text-brand-100 leading-none">
                                             {user.name}
@@ -146,7 +148,15 @@ export default function Navbar() {
                                             {user.role}
                                         </span>
                                     </div>
-                                </div>
+                                    <div className="w-8 h-8 rounded-full border-2 border-brand-600 shadow-sm overflow-hidden bg-brand-700">
+                                        <ProductImage 
+                                            src={user.avatar} 
+                                            alt={user.name}
+                                            fallbackText={user.name[0].toUpperCase()}
+                                            className="w-full h-full object-cover text-white flex items-center justify-center font-bold text-xs"
+                                        />
+                                    </div>
+                                </Link>
                             )}
 
                             {/* Logout */}
@@ -173,9 +183,14 @@ export default function Navbar() {
                     <div className="md:hidden bg-brand-900 border-t border-brand-700 px-4 pb-4 pt-2 space-y-1 animate-slideDown">
                         {/* Mobile user identity */}
                         {user && (
-                            <div className="flex items-center gap-2 py-2 mb-2 border-b border-brand-700">
-                                <div className="w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center text-sm font-extrabold text-white">
-                                    {user.name?.[0]?.toUpperCase()}
+                            <div className="flex items-center gap-3 py-2 mb-2 border-b border-brand-700">
+                                <div className="w-10 h-10 rounded-full border-2 border-brand-600 bg-brand-700 flex items-center justify-center overflow-hidden">
+                                    <ProductImage 
+                                        src={user.avatar} 
+                                        alt={user.name}
+                                        fallbackText={user.name[0]?.toUpperCase()}
+                                        className="w-full h-full object-cover text-sm font-extrabold text-white flex items-center justify-center"
+                                    />
                                 </div>
                                 <div>
                                     <p className="text-sm font-bold text-brand-100">{user.name}</p>
@@ -199,6 +214,13 @@ export default function Navbar() {
                                 )}
                             </Link>
                         ))}
+                        {/* Profile link — always visible in mobile menu */}
+                        {user && (
+                            <Link to="/profile" onClick={() => setMenuOpen(false)}
+                                className="flex items-center w-full text-sm font-semibold text-brand-200 hover:text-white hover:bg-brand-700 px-4 py-2.5 rounded-lg transition-all">
+                                👤 My Profile
+                            </Link>
+                        )}
                     </div>
                 )}
             </nav>

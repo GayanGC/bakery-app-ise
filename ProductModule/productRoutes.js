@@ -104,4 +104,79 @@ router.delete('/:id', protect, checkRole('Admin'), async (req, res) => {
     }
 });
 
+// ── POST /discount – Apply global sale ─────────────────────
+// Body: { discountPct: 20, saleEndDate: "2024-12-31" }
+router.post('/discount', protect, checkRole('Admin', 'Manager'), async (req, res) => {
+    try {
+        const { discountPct, saleEndDate } = req.body;
+        if (!discountPct || discountPct <= 0 || discountPct >= 100) {
+            return res.status(400).json({ success: false, message: 'Discount percentage must be between 1 and 99.' });
+        }
+        if (!saleEndDate) {
+            return res.status(400).json({ success: false, message: 'A sale end date is required.' });
+        }
+        const endDate = new Date(saleEndDate);
+        if (isNaN(endDate.getTime()) || endDate <= new Date()) {
+            return res.status(400).json({ success: false, message: 'Sale end date must be in the future.' });
+        }
+
+        const pct = Number(discountPct);
+        const products = await Product.find({});
+
+        await Promise.all(products.map(p => {
+            // Use stored originalPrice if already on sale, otherwise current price
+            const base = p.originalPrice || p.price;
+            const newDiscounted = Math.round(base * (1 - pct / 100));
+            return Product.findByIdAndUpdate(p._id, {
+                originalPrice: base,
+                discountPrice: newDiscounted,
+                discountPct:   pct,
+                onSale:        true,
+                saleEndDate:   endDate
+            });
+        }));
+
+        console.log(`🏷️  Global sale applied: ${pct}% off until ${endDate.toDateString()} (${products.length} products)`);
+        res.status(200).json({
+            success: true,
+            message: `${pct}% sale applied to ${products.length} products until ${endDate.toLocaleDateString()}! 🎉`,
+            count: products.length
+        });
+    } catch (err) {
+        console.error('Discount Error:', err);
+        res.status(500).json({ success: false, message: 'Server Error applying discount.' });
+    }
+});
+
+// ── DELETE /discount – Revert all prices ───────────────────
+router.delete('/discount', protect, checkRole('Admin', 'Manager'), async (req, res) => {
+    try {
+        const result = await Product.updateMany(
+            { onSale: true },
+            { $set: { onSale: false, discountPrice: null, discountPct: 0, saleEndDate: null } }
+        );
+        console.log(`✅ Sale reverted for ${result.modifiedCount} products.`);
+        res.status(200).json({ success: true, message: `Sale ended. All ${result.modifiedCount} products reverted to original prices.` });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'Server Error reverting discount.' });
+    }
+});
+
+// ── GET /discount/status – Current sale info ───────────────
+router.get('/discount/status', protect, checkRole('Admin', 'Manager'), async (req, res) => {
+    try {
+        const onSaleProduct = await Product.findOne({ onSale: true }).select('onSale discountPct saleEndDate originalPrice discountPrice');
+        if (!onSaleProduct) {
+            return res.status(200).json({ onSale: false });
+        }
+        res.status(200).json({
+            onSale:      onSaleProduct.onSale,
+            discountPct: onSaleProduct.discountPct,
+            saleEndDate: onSaleProduct.saleEndDate
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'Server Error.' });
+    }
+});
+
 module.exports = router;

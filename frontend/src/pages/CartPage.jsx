@@ -1,6 +1,7 @@
 // frontend/src/pages/CartPage.jsx
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
+import ProductImage from '../components/ProductImage';
 
 function CartPage() {
     const { cartItems, cartTotal, removeFromCart, updateQty } = useCart();
@@ -41,8 +42,13 @@ function CartPage() {
                             {cartItems.map(item => (
                                 <div key={item._id}
                                     className="bg-white rounded-2xl border border-brand-100 shadow-sm p-5 flex items-center gap-5 transition-all hover:shadow-md">
-                                    <div className="w-12 h-12 rounded-xl bg-brand-100 flex items-center justify-center text-2xl shrink-0">
-                                        🧁
+                                    <div className="w-12 h-12 shrink-0">
+                                        <ProductImage
+                                            src={item.image}
+                                            alt={item.name}
+                                            className="w-full h-full object-cover rounded-xl"
+                                            fallbackText="🧁"
+                                        />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="font-bold text-brand-800 truncate">{item.name}</p>

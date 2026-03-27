@@ -3,8 +3,10 @@
 const express = require('express');
 const router = express.Router();
 const RawMaterial = require('./RawMaterial');
+const WasteLog = require('./WasteLog');
 const { protect } = require('../middleware/authMiddleware');
 const { checkRole } = require('../middleware/checkRole');
+const { sendLowStockAlert } = require('../utils/mailer');
 
 const canManage = checkRole('InventoryManager', 'Admin');
 
@@ -57,9 +59,57 @@ router.put('/:id', protect, canManage, async (req, res) => {
         const updated = await material.save();
         const alert = updated.isLowStock ? ` ⚠️ LOW STOCK (${updated.quantity} ${updated.unit} remaining!)` : '';
         console.log(`✏️  Inventory updated: ${material.name}${alert}`);
+        // ── Send low-stock alert email (non-blocking) ───────────
+        if (updated.isLowStock) {
+            sendLowStockAlert(updated).catch(e =>
+                console.warn('📧 Low-stock email failed (non-fatal):', e.message)
+            );
+        }
         res.status(200).json({ message: `Updated ✅${alert}`, material: updated });
     } catch (err) {
         res.status(500).json({ message: 'Error updating material', detail: err.message });
+    }
+});
+
+// POST /waste — Log a waste / loss entry (InventoryManager / Admin)
+router.post('/waste', protect, canManage, async (req, res) => {
+    try {
+        const { materialId, quantityLost, reason } = req.body;
+        if (!materialId || !quantityLost || quantityLost <= 0) {
+            return res.status(400).json({ message: 'materialId and quantityLost (> 0) are required.' });
+        }
+        const material = await RawMaterial.findById(materialId);
+        if (!material) return res.status(404).json({ message: 'Material not found.' });
+
+        // Deduct from stock
+        material.quantity = Math.max(0, material.quantity - quantityLost);
+        await material.save();
+
+        const log = new WasteLog({
+            material: materialId,
+            quantityLost,
+            reason: reason || '',
+            loggedBy: req.user._id,
+            date: new Date()
+        });
+        const saved = await log.save();
+        console.log(`🗑️  Waste logged: ${quantityLost} ${material.unit} of ${material.name} by ${req.user.email}`);
+        res.status(201).json({ message: 'Waste logged ✅', wasteLog: saved, updatedMaterial: material });
+    } catch (err) {
+        res.status(500).json({ message: 'Error logging waste', detail: err.message });
+    }
+});
+
+// GET /waste — All waste logs (Admin / InventoryManager)
+router.get('/waste', protect, canManage, async (req, res) => {
+    try {
+        const logs = await WasteLog.find({})
+            .populate('material', 'name unit')
+            .populate('loggedBy', 'name email')
+            .sort({ date: -1 });
+        res.status(200).json(logs);
+    } catch (err) {
+        res.status(500).json({ message: 'Error fetching waste logs', detail: err.message });
     }
 });
 

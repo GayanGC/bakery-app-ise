@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import PINVerificationModal from '../components/PINVerificationModal';
 
 // ── 4-step order progress stepper ──────────────────────────────────────────
 const STAGES = ['Placed', 'Processing', 'Out for Delivery', 'Delivered'];
@@ -51,33 +52,6 @@ function OrderStepper({ status }) {
     );
 }
 
-// ── PIN Modal (for Manager/Admin delete) ────────────────────────────────────
-function PinModal({ onConfirm, onCancel, loading, error }) {
-    const [pin, setPin] = useState('');
-    return (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-            <div className="bg-white rounded-2xl p-8 w-80 shadow-2xl">
-                <h3 className="text-xl font-extrabold text-brand-800 mb-2"
-                    style={{ fontFamily: '"Playfair Display", serif' }}>🔒 Confirm Deletion</h3>
-                <p className="text-sm text-slate-500 mb-4">Enter your 4-digit PIN to delete this order.</p>
-                {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
-                <input type="password" maxLength={4} placeholder="••••"
-                    className="block w-full px-4 py-3 text-center text-2xl tracking-widest bg-brand-50 border border-brand-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-400 mb-5"
-                    value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))} />
-                <div className="flex gap-3">
-                    <button onClick={onCancel}
-                        className="flex-1 py-2.5 font-semibold text-sm text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50">
-                        Cancel
-                    </button>
-                    <button onClick={() => onConfirm(pin)} disabled={loading || pin.length !== 4}
-                        className="flex-1 py-2.5 font-semibold text-sm text-white bg-red-500 rounded-xl hover:bg-red-600 disabled:opacity-50">
-                        {loading ? 'Deleting…' : 'Delete'}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-}
 
 // ── Status badge config ─────────────────────────────────────────────────────
 const badgeStyle = {
@@ -106,6 +80,10 @@ export default function OrderHistoryPage() {
 
     // Delivery person assignment (Admin/Staff)
     const [deliveryEdits, setDeliveryEdits] = useState({});
+
+    const [cancelTarget,  setCancelTarget]  = useState(null); // orderId
+    const [cancelLoading, setCancelLoading] = useState(false);
+    const [cancelError,   setCancelError]   = useState('');
 
     const isStaff = hasRole('Staff', 'Manager', 'Admin');
     const canDelete = hasRole('Manager', 'Admin');
@@ -143,14 +121,38 @@ export default function OrderHistoryPage() {
         setPinLoading(true);
         setPinError('');
         try {
-            await api.delete(`/orders/${pinTarget}`, { data: { pin } });
+            if (hasRole('Staff') && !hasRole('Manager', 'Admin')) {
+                // Staff requires Manager PIN override
+                await api.delete(`/orders/${pinTarget}/override`, { data: { managerPin: pin } });
+            } else {
+                // Manager/Admin uses their own PIN
+                await api.delete(`/orders/${pinTarget}`, { data: { pin } });
+            }
+            setOrders(orders.filter(o => o._id !== pinTarget));
             setPinTarget(null);
-            fetchOrders();
         } catch (e) {
-            setPinError(e.response?.data?.message || 'Failed to delete.');
+            setPinError(e.response?.data?.message || 'Failed to authorize or delete order.');
             setPinLoading(false);
         }
     };
+
+    const handleCancelOrder = async () => {
+        if (!cancelTarget) return;
+        setCancelLoading(true);
+        setCancelError('');
+        try {
+            await api.patch(`/orders/${cancelTarget}/cancel`);
+            setCancelTarget(null);
+            fetchOrders();
+        } catch (e) {
+            setCancelError(e.response?.data?.message || 'Could not cancel order.');
+            setCancelLoading(false);
+        }
+    };
+
+    // Returns remaining seconds in cancellation window (negative = expired)
+    const cancelSecsLeft = (createdAt) =>
+        Math.max(0, Math.round((new Date(createdAt).getTime() + 5*60*1000 - Date.now()) / 1000));
 
     const fmt = (d) => new Date(d).toLocaleDateString('en-GB', {
         day: 'numeric', month: 'short', year: 'numeric',
@@ -284,6 +286,17 @@ export default function OrderHistoryPage() {
                                     </div>
                                 )}
 
+                                {/* 🚫 Cancel Order — Customer, Placed + within 5 min */}
+                                {!isStaff && order.status === 'Placed' && cancelSecsLeft(order.createdAt) > 0 && (
+                                    <div className="mt-3 pt-3 border-t border-brand-50">
+                                        <button
+                                            onClick={() => { setCancelTarget(order._id); setCancelError(''); }}
+                                            className="text-xs font-bold px-4 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 active:scale-95 transition-all">
+                                            🚫 Cancel Order ({Math.floor(cancelSecsLeft(order.createdAt)/60)}m {cancelSecsLeft(order.createdAt)%60}s)
+                                        </button>
+                                    </div>
+                                )}
+
                                 {/* ── Staff/Admin action row ───────────── */}
                                 {isStaff && (
                                     <div className="mt-4 pt-4 border-t border-brand-50 space-y-3">
@@ -323,8 +336,8 @@ export default function OrderHistoryPage() {
                                                 </select>
                                             )}
 
-                                            {/* Delete (Manager/Admin + PIN) */}
-                                            {canDelete && (
+                                            {/* Delete (Manager/Admin + PIN, or Staff Override) */}
+                                            {isStaff && (
                                                 <button
                                                     onClick={() => { setPinTarget(order._id); setPinError(''); }}
                                                     className="text-xs font-semibold text-red-500 hover:text-red-700 transition-colors">
@@ -341,12 +354,44 @@ export default function OrderHistoryPage() {
             </main>
 
             {pinTarget && (
-                <PinModal
+                <PINVerificationModal
+                    title={hasRole('Manager', 'Admin') ? "🔒 Confirm Deletion" : "👑 Manager Override"}
+                    subtitle={hasRole('Manager', 'Admin') 
+                        ? "Enter your 4-digit PIN to delete this order."
+                        : "Enter a Manager's 4-digit PIN to authorize deletion."}
                     loading={pinLoading}
                     error={pinError}
                     onConfirm={handleDeleteConfirm}
                     onCancel={() => { setPinTarget(null); setPinError(''); }}
                 />
+            )}
+
+            {/* ── Cancel Order Confirmation Modal ─────────── */}
+            {cancelTarget && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl p-8 w-full max-w-sm shadow-2xl text-center">
+                        <div className="text-4xl mb-3">🚫</div>
+                        <h3 className="text-xl font-extrabold text-slate-800 mb-2"
+                            style={{ fontFamily: '"Playfair Display", serif' }}>Cancel This Order?</h3>
+                        <p className="text-sm text-slate-500 mb-2">
+                            This cannot be undone. Your items will be returned to stock.
+                        </p>
+                        {cancelError && <p className="text-xs text-red-500 mb-3">{cancelError}</p>}
+                        <div className="flex gap-3 mt-5">
+                            <button
+                                onClick={() => { setCancelTarget(null); setCancelError(''); }}
+                                className="flex-1 py-2.5 font-semibold text-sm text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50">
+                                Keep Order
+                            </button>
+                            <button
+                                onClick={handleCancelOrder}
+                                disabled={cancelLoading}
+                                className="flex-1 py-2.5 font-semibold text-sm text-white bg-red-500 rounded-xl hover:bg-red-600 disabled:opacity-50">
+                                {cancelLoading ? 'Cancelling…' : 'Yes, Cancel'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

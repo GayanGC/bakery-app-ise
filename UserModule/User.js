@@ -53,7 +53,21 @@ const userSchema = new mongoose.Schema({
         type: String,
         enum: { values: VALID_ROLES, message: 'Invalid role selected' },
         default: 'Customer'
-    }
+    },
+
+    // ── Approval status ───────────────────────────────────────
+    status: {
+        type: String,
+        enum: ['Active', 'In Process', 'Suspended'],
+        default: 'Active'
+    },
+
+    // ── Password reset OTP ───────────────────────────────────
+    resetOtp:       { type: String, default: null },   // hashed OTP
+    resetOtpExpiry: { type: Date,   default: null },   // 15-min expiry
+
+    // ── Profile Photo ────────────────────────────────────────
+    avatar: { type: String, default: '' }              // e.g. /uploads/avatar-xxx.jpg
 
 }, { timestamps: true });
 

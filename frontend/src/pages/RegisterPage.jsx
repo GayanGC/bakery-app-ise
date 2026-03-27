@@ -5,7 +5,6 @@ import api from '../api/axios';
 
 // ── Validation rules ────────────────────────────────────────
 const VALID_ROLES = ['Customer', 'Staff', 'Manager', 'Admin', 'InventoryManager', 'InventorySeller'];
-const PIN_REQUIRED_ROLES = ['Admin', 'Manager'];
 
 const validators = {
     name: (v) => {
@@ -34,48 +33,30 @@ const validators = {
         if (!/[0-9]/.test(v)) return 'Password must include at least one number';
         return '';
     },
-    pin: (v, role) => {
-        const required = PIN_REQUIRED_ROLES.includes(role);
-        if (required && !v) return 'PIN is required for Admin and Manager roles';
-        if (v && !/^\d{4}$/.test(v)) return 'PIN must be exactly 4 digits';
-        return '';
-    },
 };
 
 export default function RegisterPage() {
     const [form, setForm] = useState({
-        name: '', email: '', phone: '', password: '', pin: '', role: 'Customer'
+        name: '', email: '', phone: '', password: '', role: 'Customer'
     });
     const [fieldErrors, setFieldErrors] = useState({
-        name: '', email: '', phone: '', role: '', password: '', pin: ''
+        name: '', email: '', phone: '', role: '', password: ''
     });
     const [touched, setTouched] = useState({});
     const [showPwd, setShowPwd] = useState(false);
-    const [showPin, setShowPin] = useState(false);
     const [serverError, setServerError] = useState('');
+    const [pendingMsg,   setPendingMsg]  = useState('');  // approval pending notice
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
 
     // ── Validate a single field ──────────────────────────────
     const validateField = (name, value, currentForm = form) => {
-        if (name === 'pin') return validators.pin(value, currentForm.role);
         return validators[name] ? validators[name](value) : '';
     };
 
     // ── Handle input changes ─────────────────────────────────
     const handleChange = (e) => {
         const { name, value } = e.target;
-
-        // PIN: silently strip non-digits, cap at 4
-        if (name === 'pin') {
-            const digits = value.replace(/\D/g, '').slice(0, 4);
-            const newForm = { ...form, pin: digits };
-            setForm(newForm);
-            if (touched.pin) {
-                setFieldErrors(prev => ({ ...prev, pin: validateField('pin', digits, newForm) }));
-            }
-            return;
-        }
 
         // Phone: strip non-digits, cap at 10
         if (name === 'phone') {
@@ -91,12 +72,11 @@ export default function RegisterPage() {
         const newForm = { ...form, [name]: value };
         setForm(newForm);
 
-        // Re-validate PIN when role changes (PIN requirement may change)
+        // Re-validate when role changes
         if (name === 'role') {
             setFieldErrors(prev => ({
                 ...prev,
                 role: validateField('role', value),
-                pin: touched.pin ? validators.pin(newForm.pin, value) : prev.pin,
             }));
             return;
         }
@@ -128,7 +108,6 @@ export default function RegisterPage() {
             phone:    validators.phone(form.phone),
             role:     validators.role(form.role),
             password: validators.password(form.password),
-            pin:      validators.pin(form.pin, form.role),
         };
         setFieldErrors(errors);
 
@@ -137,8 +116,13 @@ export default function RegisterPage() {
 
         setLoading(true);
         try {
-            await api.post('/users/register', form);
-            navigate('/login');
+            const { data } = await api.post('/users/register', form);
+            if (data.status === 'In Process') {
+                // Show approval-pending message, don't redirect yet
+                setPendingMsg('Registration successful! Please wait for Admin approval.');
+            } else {
+                navigate('/login');
+            }
         } catch (err) {
             setServerError(err.response?.data?.message || 'Registration failed. Please try again.');
         } finally {
@@ -161,8 +145,6 @@ export default function RegisterPage() {
             </p>
         ) : null;
 
-    const pinRequired = PIN_REQUIRED_ROLES.includes(form.role);
-
     return (
         <div className="flex items-center justify-center min-h-screen bg-brand-50 py-12 px-4">
             <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-3xl shadow-xl border border-brand-100 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300">
@@ -182,6 +164,17 @@ export default function RegisterPage() {
                 {serverError && (
                     <div className="p-3 text-sm text-red-700 bg-red-50 rounded-xl border border-red-200 flex items-center gap-2">
                         <span>❌</span> {serverError}
+                    </div>
+                )}
+
+                {/* Pending approval notice */}
+                {pendingMsg && (
+                    <div className="p-4 text-sm rounded-xl border border-orange-200 bg-orange-50 text-orange-800">
+                        <p className="font-bold mb-1">⏳ Registration Submitted!</p>
+                        <p className="text-xs">{pendingMsg}</p>
+                        <Link to="/login" className="inline-block mt-3 text-xs font-bold text-brand-600 hover:underline">
+                            ← Back to Login
+                        </Link>
                     </div>
                 )}
 
@@ -257,31 +250,7 @@ export default function RegisterPage() {
                         <FieldError field="password" />
                     </div>
 
-                    {/* ── Security PIN ── */}
-                    <div>
-                        <label className="block text-sm font-semibold text-brand-800 mb-1">
-                            4-Digit Security PIN
-                            {pinRequired
-                                ? <span className="ml-1 text-xs font-bold text-red-500">(required for {form.role})</span>
-                                : <span className="ml-1 text-xs font-normal text-slate-400">(optional)</span>
-                            }
-                        </label>
-                        <div className="relative">
-                            <input type={showPin ? 'text' : 'password'} name="pin"
-                                maxLength={4} placeholder="••••"
-                                className={`${inputCls('pin')} pr-12 tracking-widest text-center text-xl`}
-                                value={form.pin} onChange={handleChange} onBlur={handleBlur} />
-                            <button type="button" tabIndex={-1}
-                                onClick={() => setShowPin(s => !s)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-brand-600 text-lg">
-                                {showPin ? '🙈' : '👁️'}
-                            </button>
-                        </div>
-                        <FieldError field="pin" />
-                        {!fieldErrors.pin && (
-                            <p className="text-xs text-slate-400 mt-1">Used to confirm deletions and sensitive operations.</p>
-                        )}
-                    </div>
+
 
                     <button type="submit" disabled={loading}
                         className="w-full py-3 px-4 text-sm font-bold text-white bg-brand-500 rounded-xl shadow-md hover:bg-brand-600 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200">

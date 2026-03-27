@@ -1,7 +1,11 @@
 // frontend/src/pages/AdminDashboard.jsx
 import { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import FeedbackList from '../components/FeedbackList';
+import AnalyticsDashboard from '../components/AnalyticsDashboard';
+import ApprovalPanel from '../components/ApprovalPanel';
+import DiscountCalendar from '../components/DiscountCalendar';
 
 // ── PIN Modal ─────────────────────────────────────────────
 function PinModal({ onConfirm, onCancel, loading }) {
@@ -33,53 +37,10 @@ function PinModal({ onConfirm, onCancel, loading }) {
     );
 }
 
-// ── Simple SVG Bar Chart ──────────────────────────────────
-function BarChart({ data }) {
-    if (!data?.length) return null;
-    const maxVal = Math.max(...data.map(d => d.orders), 1);
-    const maxRev = Math.max(...data.map(d => d.revenue), 1);
-    const barW = 100 / data.length;
-
-    return (
-        <div className="bg-white rounded-2xl border border-brand-100 shadow-md p-6">
-            <h3 className="text-lg font-extrabold text-brand-800 mb-6"
-                style={{ fontFamily: '"Playfair Display", serif' }}>
-                Orders &amp; Revenue — Last 6 Months
-            </h3>
-            <div className="flex items-end gap-3 h-48 px-2">
-                {data.map((d, i) => (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-1 group">
-                        {/* Revenue bar */}
-                        <div className="w-full flex flex-col items-center gap-0.5">
-                            <span className="text-[10px] font-bold text-brand-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                                Rs.{d.revenue.toLocaleString()}
-                            </span>
-                            <div
-                                className="w-3/4 bg-brand-300 rounded-t-md transition-all duration-500"
-                                style={{ height: `${(d.revenue / maxRev) * 120}px` }}
-                                title={`Revenue: Rs.${d.revenue}`}
-                            />
-                        </div>
-                        {/* Orders bar */}
-                        <div
-                            className="w-1/2 bg-brand-500 rounded-t-sm transition-all duration-500"
-                            style={{ height: `${(d.orders / maxVal) * 80}px` }}
-                            title={`Orders: ${d.orders}`}
-                        />
-                        <span className="text-[10px] text-slate-400 mt-1 text-center leading-tight">{d.label}</span>
-                    </div>
-                ))}
-            </div>
-            <div className="flex gap-5 mt-4 justify-center text-xs">
-                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-brand-300 inline-block" />Revenue</span>
-                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-brand-500 inline-block" />Orders</span>
-            </div>
-        </div>
-    );
-}
 
 // ── Main AdminDashboard ───────────────────────────────────
 export default function AdminDashboard() {
+    const { user } = useAuth();
     const [analytics, setAnalytics] = useState(null);
     const [orders, setOrders] = useState([]);
     const [loadA, setLoadA] = useState(true);
@@ -90,12 +51,6 @@ export default function AdminDashboard() {
     const [pinTarget, setPinTarget] = useState(null); // orderId to delete
     const [pinLoading, setPinLoading] = useState(false);
     const [pinError, setPinError] = useState('');
-
-    // ─ PIN Management state ─────────────────────────────────
-    const [pinUsers, setPinUsers] = useState([]);  // Manager + InventoryManager users
-    const [assignPins, setAssignPins] = useState({});  // { userId: '1234' }
-    const [assignMsg, setAssignMsg] = useState({});  // { userId: 'success/error msg' }
-    const [assignLoad, setAssignLoad] = useState({});  // { userId: bool }
 
     const fetchAnalytics = async () => {
         try {
@@ -114,14 +69,7 @@ export default function AdminDashboard() {
         finally { setLoadO(false); }
     };
 
-    const fetchPinUsers = async () => {
-        try {
-            const { data } = await api.get('/users/all');
-            setPinUsers(data.filter(u => ['Manager', 'InventoryManager'].includes(u.role)));
-        } catch { /* silently ignore if endpoint not available */ }
-    };
-
-    useEffect(() => { fetchAnalytics(); fetchOrders(); fetchPinUsers(); }, []);
+    useEffect(() => { fetchAnalytics(); fetchOrders(); }, []);
 
     const handleStatusChange = async (id, status) => {
         try {
@@ -143,25 +91,7 @@ export default function AdminDashboard() {
         }
     };
 
-    const handleAssignPin = async (userId) => {
-        const pin = assignPins[userId] || '';
-        if (!/^\d{4}$/.test(pin)) {
-            setAssignMsg(m => ({ ...m, [userId]: 'PIN must be exactly 4 digits.' }));
-            return;
-        }
-        setAssignLoad(m => ({ ...m, [userId]: true }));
-        try {
-            const { data } = await api.put(`/users/${userId}/pin`, { pin });
-            setAssignMsg(m => ({ ...m, [userId]: data.message }));
-            setAssignPins(m => ({ ...m, [userId]: '' }));
-            fetchPinUsers(); // refresh hasPin status
-        } catch (e) {
-            setAssignMsg(m => ({ ...m, [userId]: e.response?.data?.message || 'Failed to assign PIN.' }));
-        } finally {
-            setAssignLoad(m => ({ ...m, [userId]: false }));
-            setTimeout(() => setAssignMsg(m => ({ ...m, [userId]: '' })), 3500);
-        }
-    };
+
 
     const statusBadge = {
         Pending: 'bg-amber-100 text-amber-700',
@@ -177,6 +107,12 @@ export default function AdminDashboard() {
 
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+
+                {/* ── Pending Approval Requests (top priority - Admin Only) ──────── */}
+                {user?.role === 'Admin' && <ApprovalPanel />}
+
+                {/* ── Dynamic Discount Manager ───────────────────── */}
+                <DiscountCalendar />
 
                 {/* ── Stat Cards ──────────────────────────────── */}
                 {S && (
@@ -204,14 +140,8 @@ export default function AdminDashboard() {
                     </div>
                 )}
 
-                {/* ── Bar Chart ──────────────────────────────── */}
-                {loadA ? (
-                    <div className="flex justify-center py-10">
-                        <div className="w-10 h-10 border-4 border-brand-200 border-t-brand-500 rounded-full animate-spin" />
-                    </div>
-                ) : (
-                    <BarChart data={analytics?.months} />
-                )}
+                {/* ── Analytics Dashboard ─────────────────────── */}
+                <AnalyticsDashboard />
 
                 {error && <div className="p-4 bg-red-50 text-red-700 rounded-xl border border-red-200">{error}</div>}
 
@@ -287,82 +217,7 @@ export default function AdminDashboard() {
                         </div>
                     )}
                 </div>
-                {/* ── PIN Management Section ────────────────────── */}
-                <div className="bg-white rounded-2xl border border-brand-100 shadow-md overflow-hidden">
-                    <div className="px-6 py-4 border-b border-brand-100 flex items-center gap-3">
-                        <span className="text-xl">🔑</span>
-                        <div>
-                            <h3 className="text-lg font-extrabold text-brand-800"
-                                style={{ fontFamily: '"Playfair Display", serif' }}>
-                                PIN Management
-                            </h3>
-                            <p className="text-xs text-slate-400 mt-0.5">
-                                Assign 4-digit Security PINs to Managers &amp; Inventory Managers
-                            </p>
-                        </div>
-                    </div>
 
-                    {pinUsers.length === 0 ? (
-                        <div className="py-10 text-center text-slate-400 text-sm">
-                            No Manager or InventoryManager accounts found.
-                        </div>
-                    ) : (
-                        <div className="divide-y divide-brand-50">
-                            {pinUsers.map(u => (
-                                <div key={u._id}
-                                    className="px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-4">
-
-                                    {/* User info */}
-                                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0"
-                                            style={{ background: u.role === 'Manager' ? '#fef3c7' : '#dbeafe' }}>
-                                            {u.role === 'Manager' ? '👔' : '🏭'}
-                                        </div>
-                                        <div className="min-w-0">
-                                            <p className="font-bold text-brand-800 truncate">{u.name}</p>
-                                            <p className="text-xs text-slate-400 truncate">{u.email}</p>
-                                        </div>
-                                        <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${u.role === 'Manager' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
-                                            }`}>{u.role}</span>
-                                        {u.hasPin && (
-                                            <span className="shrink-0 text-xs font-bold text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
-                                                ✓ PIN set
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    {/* PIN input + assign button */}
-                                    <div className="flex items-center gap-2 shrink-0">
-                                        <input
-                                            type="password"
-                                            maxLength={4}
-                                            inputMode="numeric"
-                                            placeholder="New PIN"
-                                            className="w-24 px-3 py-2 text-center text-lg tracking-widest bg-brand-50 border border-brand-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all"
-                                            value={assignPins[u._id] || ''}
-                                            onChange={e => setAssignPins(m => ({
-                                                ...m,
-                                                [u._id]: e.target.value.replace(/\D/g, '').slice(0, 4)
-                                            }))}
-                                        />
-                                        <button
-                                            onClick={() => handleAssignPin(u._id)}
-                                            disabled={assignLoad[u._id] || (assignPins[u._id] || '').length !== 4}
-                                            className="px-4 py-2 bg-brand-500 text-white text-sm font-bold rounded-xl hover:bg-brand-600 active:scale-95 disabled:opacity-40 transition-all">
-                                            {assignLoad[u._id] ? '…' : u.hasPin ? 'Update PIN' : 'Assign PIN'}
-                                        </button>
-                                    </div>
-
-                                    {/* Feedback message */}
-                                    {assignMsg[u._id] && (
-                                        <p className={`text-xs font-semibold sm:absolute sm:right-6 ${assignMsg[u._id].includes('✅') ? 'text-green-600' : 'text-red-500'
-                                            }`}>{assignMsg[u._id]}</p>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
 
                 {/* ── Customer Reviews ─────────────────────────── */}
                 <FeedbackList />

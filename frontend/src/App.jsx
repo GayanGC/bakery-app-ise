@@ -14,9 +14,11 @@ import AdminDashboard from './pages/AdminDashboard';
 import InventoryPage from './pages/InventoryPage';
 import PurchaseRequestsPage from './pages/PurchaseRequestsPage';
 import FeedbackPage from './pages/FeedbackPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ProfilePage from './pages/ProfilePage';
 
 // Pages that should NOT show the Navbar
-const NO_NAV_PATHS = ['/login', '/register', '/'];
+const NO_NAV_PATHS = ['/login', '/register', '/', '/forgot-password'];
 
 function AppLayout({ children }) {
   const location = useLocation();
@@ -38,6 +40,7 @@ function App() {
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
           {/* ── Product Management (Admin / Manager) ──── */}
           <Route path="/dashboard" element={<ProductDashboard />} />
@@ -50,6 +53,9 @@ function App() {
 
           {/* ── Customer Feedback ─────────────────────── */}
           <Route path="/feedback/:orderId" element={<FeedbackPage />} />
+
+          {/* ── User Profile ──────────────────────────── */}
+          <Route path="/profile" element={<ProfilePage />} />
 
           {/* ── Admin / Manager Analytics ─────────────── */}
           <Route path="/admin" element={<AdminDashboard />} />

@@ -105,7 +105,8 @@ export default function LoginPage() {
     const [showPwd, setShowPwd] = useState(false);
     const [showPin, setShowPin] = useState(false);
     const [phase, setPhase] = useState(1);
-    const [error, setError] = useState('');
+    const [error,   setError]  = useState('');
+    const [pending,  setPending] = useState(false);  // account awaiting approval
     const [loading, setLoading] = useState(false);
 
     const navigate = useNavigate();
@@ -119,6 +120,7 @@ export default function LoginPage() {
     const handleLogin = async (e) => {
         e.preventDefault();
         setError('');
+        setPending(false);
         setLoading(true);
         try {
             const payload = { email, password };
@@ -128,7 +130,8 @@ export default function LoginPage() {
             navigate(getHome(data.user.role));
         } catch (err) {
             const body = err.response?.data;
-            if (body?.requiresPin) { setPhase(2); setError(body.message); }
+            if (body?.requiresPin)    { setPhase(2); setError(body.message); }
+            else if (body?.pendingApproval) { setPending(true); }
             else setError(body?.message || 'Login failed. Please try again.');
         } finally {
             setLoading(false);
@@ -196,13 +199,20 @@ export default function LoginPage() {
                             </div>
                         </div>
 
-                        {/* Error banner */}
+                        {/* Error / Pending banners */}
                         {error && (
-                            <div className={`p-3 text-sm rounded-xl border animate-fadeInUp ${phase === 2 && error.toLowerCase().includes('wrong')
+                            <div className={`p-3 text-sm rounded-xl border animate-fadeInUp ${
+                                phase === 2 && error.toLowerCase().includes('wrong')
                                     ? 'text-red-700 bg-red-50 border-red-200'
                                     : 'text-amber-700 bg-amber-50 border-amber-200'
-                                }`}>
+                            }`}>
                                 {error}
+                            </div>
+                        )}
+                        {pending && (
+                            <div className="p-4 text-sm rounded-xl border border-orange-200 bg-orange-50 text-orange-700 animate-fadeInUp">
+                                <p className="font-bold mb-1">⏳ Account Pending Approval</p>
+                                <p className="text-xs">Your registration has been received. Please wait for an Admin to review and activate your account. You will then be able to log in.</p>
                             </div>
                         )}
 
@@ -286,6 +296,11 @@ export default function LoginPage() {
                             Don't have an account?{' '}
                             <Link to="/register" className="font-semibold text-brand-600 hover:text-brand-800 transition-colors">
                                 Register here
+                            </Link>
+                        </p>
+                        <p className="text-center text-xs text-slate-400">
+                            <Link to="/forgot-password" className="hover:text-brand-600 transition-colors underline underline-offset-2">
+                                Forgot your password?
                             </Link>
                         </p>
                     </div>

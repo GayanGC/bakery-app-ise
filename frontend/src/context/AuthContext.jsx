@@ -22,6 +22,18 @@ export function AuthProvider({ children }) {
         setTimeout(() => setGreeting(''), 4000);
     }, []);
 
+    const updateUser = useCallback((updatedUserData) => {
+        setUser(prevUser => {
+            const newUser = { ...prevUser, ...updatedUserData };
+            try {
+                const info = JSON.parse(localStorage.getItem('userInfo') || '{}');
+                info.user = newUser;
+                localStorage.setItem('userInfo', JSON.stringify(info));
+            } catch (e) { console.error('Failed to update localStorage userInfo', e); }
+            return newUser;
+        });
+    }, []);
+
     const logout = useCallback(() => {
         localStorage.removeItem('token');
         localStorage.removeItem('userInfo');
@@ -32,7 +44,7 @@ export function AuthProvider({ children }) {
     const hasRole = useCallback((...roles) => user && roles.includes(user.role), [user]);
 
     return (
-        <AuthContext.Provider value={{ user, greeting, login, logout, hasRole }}>
+        <AuthContext.Provider value={{ user, greeting, login, logout, updateUser, hasRole }}>
             {children}
         </AuthContext.Provider>
     );

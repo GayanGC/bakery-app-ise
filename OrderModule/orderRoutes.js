@@ -10,6 +10,7 @@ const Payment = require('../FeedbackPaymentModule/Payment');
 const bcrypt = require('bcryptjs');
 const { protect } = require('../middleware/authMiddleware');
 const { checkRole } = require('../middleware/checkRole');
+const { sendOrderConfirmation } = require('../utils/mailer');
 
 // ── GET /analytics  –  Monthly stats (Admin/Manager) ───────────
 router.get('/analytics', protect, checkRole('Admin', 'Manager'), async (req, res) => {
@@ -68,6 +69,11 @@ router.post('/', protect, async (req, res) => {
         });
         await payment.save();
         console.log(`✅ Order ${createdOrder._id} | Rs.${totalPrice} | ${method} | ${req.user.email}`);
+        // ── Send order confirmation email (non-blocking) ────────
+        const fullUser = await User.findById(req.user._id).select('name email');
+        sendOrderConfirmation(fullUser.email, createdOrder, fullUser.name).catch(e =>
+            console.warn('📧 Confirmation email failed (non-fatal):', e.message)
+        );
         return res.status(201).json({ message: 'Order placed successfully! 🎉', order: createdOrder, payment });
     } catch (err) {
         console.error('❌ Place Order Error:', err.message);
@@ -134,6 +140,42 @@ async function updateStatus(req, res) {
 router.put('/:id/status', protect, checkRole('Admin', 'Staff', 'Manager'), updateStatus);
 router.patch('/:id/status', protect, checkRole('Admin', 'Staff', 'Manager'), updateStatus);
 
+// ── PATCH /:id/cancel  –  Customer cancels within 5 minutes ───
+const CANCEL_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+router.patch('/:id/cancel', protect, async (req, res) => {
+    try {
+        const order = await Order.findById(req.params.id);
+        if (!order) return res.status(404).json({ success: false, message: 'Order not found.' });
+
+        // Only the owner can self-cancel
+        if (order.user.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ success: false, message: 'You can only cancel your own orders.' });
+        }
+        if (order.status !== 'Placed') {
+            return res.status(400).json({ success: false, message: `Order is already "${order.status}" and cannot be cancelled.` });
+        }
+        const elapsed = Date.now() - new Date(order.createdAt).getTime();
+        if (elapsed > CANCEL_WINDOW_MS) {
+            return res.status(400).json({ success: false, message: 'Cancellation window (5 minutes) has passed.' });
+        }
+
+        // Revert product stock
+        for (const item of order.orderItems) {
+            await Product.findByIdAndUpdate(item.product, { $inc: { countInStock: item.qty } });
+        }
+
+        order.status = 'Cancelled';
+        order.cancelledAt = new Date();
+        const updated = await order.save();
+
+        console.log(`🚫 Order ${order._id} cancelled by ${req.user.email} (within window)`);
+        res.status(200).json({ success: true, message: 'Order cancelled successfully. Stock has been restored.', order: updated });
+    } catch (err) {
+        console.error('Cancel Order Error:', err);
+        res.status(500).json({ success: false, message: 'Server Error while cancelling order.' });
+    }
+});
+
 // ── DELETE /:id  –  Manager/Admin with PIN ──────────────────────
 router.delete('/:id', protect, checkRole('Manager', 'Admin'), async (req, res) => {
     try {
@@ -148,6 +190,37 @@ router.delete('/:id', protect, checkRole('Manager', 'Admin'), async (req, res) =
         res.status(200).json({ message: 'Order deleted ✅' });
     } catch (err) {
         res.status(500).json({ message: 'Server Error while deleting order' });
+    }
+});
+
+// ── DELETE /:id/override  –  Staff deletes with Manager PIN ─────
+router.delete('/:id/override', protect, checkRole('Staff'), async (req, res) => {
+    try {
+        const { managerPin } = req.body;
+        if (!managerPin) return res.status(400).json({ success: false, message: 'Manager PIN is required.' });
+
+        const authUsers = await User.find({ role: { $in: ['Manager', 'Admin'] } });
+        let isAuthorized = false;
+
+        for (const authUser of authUsers) {
+            if (authUser.pin && await bcrypt.compare(String(managerPin), authUser.pin)) {
+                isAuthorized = true;
+                break;
+            }
+        }
+
+        if (!isAuthorized) {
+            return res.status(401).json({ success: false, message: 'Unauthorized: Invalid Manager PIN' });
+        }
+
+        const deleted = await Order.findByIdAndDelete(req.params.id);
+        if (!deleted) return res.status(404).json({ success: false, message: 'Order not found' });
+        
+        console.log(`🗑️  Order ${req.params.id} overridden & deleted by ${req.user.email} using Manager PIN`);
+        res.status(200).json({ success: true, message: 'Order overridden and deleted successfully! ✅' });
+    } catch (err) {
+        console.error('Override Delete Error:', err);
+        res.status(500).json({ success: false, message: 'Server Error while overriding order deletion.' });
     }
 });
 

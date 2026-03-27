@@ -86,4 +86,54 @@ router.get('/order/:orderId', protect, async (req, res) => {
     }
 });
 
+// PUT /:id — Customer updates their own feedback (owner only)
+router.put('/:id', protect, async (req, res) => {
+    try {
+        const feedback = await Feedback.findById(req.params.id);
+        if (!feedback) return res.status(404).json({ success: false, message: 'Feedback not found.' });
+
+        // Ownership check
+        if (feedback.user.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ success: false, message: 'You can only edit your own feedback.' });
+        }
+
+        const { rating, comment } = req.body;
+        if (rating === undefined || rating < 1 || rating > 5) {
+            return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5.' });
+        }
+
+        feedback.rating = rating;
+        feedback.comment = comment ?? feedback.comment;
+        const updated = await feedback.save();
+
+        console.log(`✏️  Feedback ${feedback._id} updated by ${req.user.email} — ${rating}/5`);
+        res.status(200).json({ success: true, message: 'Feedback updated successfully!', feedback: updated });
+    } catch (err) {
+        console.error('Feedback Update Error:', err);
+        res.status(500).json({ success: false, message: 'Server Error while updating feedback.' });
+    }
+});
+
+// DELETE /:id — Owner OR Admin / Manager can delete
+router.delete('/:id', protect, async (req, res) => {
+    try {
+        const feedback = await Feedback.findById(req.params.id);
+        if (!feedback) return res.status(404).json({ success: false, message: 'Feedback not found.' });
+
+        const isOwner   = feedback.user.toString() === req.user._id.toString();
+        const isPriv    = ['Admin', 'Manager'].includes(req.user.role);
+
+        if (!isOwner && !isPriv) {
+            return res.status(403).json({ success: false, message: 'Not authorised to delete this feedback.' });
+        }
+
+        await Feedback.findByIdAndDelete(req.params.id);
+        console.log(`🗑️  Feedback ${req.params.id} deleted by ${req.user.email} (${req.user.role})`);
+        res.status(200).json({ success: true, message: 'Feedback deleted successfully.' });
+    } catch (err) {
+        console.error('Feedback Delete Error:', err);
+        res.status(500).json({ success: false, message: 'Server Error while deleting feedback.' });
+    }
+});
+
 module.exports = router;

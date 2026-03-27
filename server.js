@@ -96,4 +96,30 @@ app.use((err, req, res, next) => {
 
 // ── Start ───────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
+app.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+
+    // ── Auto-revert expired sales every hour ──────────────────────
+    try {
+        const cron = require('node-cron');
+        const Product = require('./ProductModule/Product');
+
+        cron.schedule('0 * * * *', async () => {
+            try {
+                const now = new Date();
+                const result = await Product.updateMany(
+                    { onSale: true, saleEndDate: { $lte: now } },
+                    { $set: { onSale: false, discountPrice: null, discountPct: 0, saleEndDate: null } }
+                );
+                if (result.modifiedCount > 0) {
+                    console.log(`⏰ [CRON] Sale expired — reverted ${result.modifiedCount} products to original prices.`);
+                }
+            } catch (e) {
+                console.error('[CRON] Error reverting expired sales:', e.message);
+            }
+        });
+        console.log('⏰ Cron: sale auto-revert scheduled (runs every hour).');
+    } catch (e) {
+        console.warn('⚠️  node-cron not available — install with: npm install node-cron');
+    }
+});
