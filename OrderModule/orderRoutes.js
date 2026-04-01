@@ -92,7 +92,7 @@ router.get('/mine', protect, async (req, res) => {
 });
 
 // ── GET /  –  All orders (Staff / Admin / Manager) ─────────────
-router.get('/', protect, checkRole('Staff', 'Admin', 'Manager'), async (req, res) => {
+router.get('/', protect, checkRole('Delivery Partner', 'Admin', 'Manager'), async (req, res) => {
     try {
         const orders = await Order.find({}).populate('user', 'name email role').sort({ createdAt: -1 });
         res.status(200).json(orders);
@@ -106,7 +106,7 @@ router.get('/:id', protect, async (req, res) => {
     try {
         const order = await Order.findById(req.params.id).populate('user', 'name email');
         if (!order) return res.status(404).json({ message: 'Order not found' });
-        if (order.user._id.toString() !== req.user._id.toString() && !['Staff', 'Admin', 'Manager'].includes(req.user.role)) {
+        if (order.user._id.toString() !== req.user._id.toString() && !['Delivery Partner', 'Admin', 'Manager'].includes(req.user.role)) {
             return res.status(403).json({ message: 'Access denied' });
         }
         res.status(200).json(order);
@@ -123,7 +123,7 @@ async function updateStatus(req, res) {
         if (!statusFlow.includes(status)) return res.status(400).json({ message: `Invalid status. Allowed: ${statusFlow.join(' → ')}` });
         const order = await Order.findById(req.params.id);
         if (!order) return res.status(404).json({ message: 'Order not found' });
-        if (req.user.role === 'Staff') {
+        if (req.user.role === 'Delivery Partner') {
             const currentIdx = statusFlow.indexOf(order.status);
             const nextIdx = statusFlow.indexOf(status);
             if (nextIdx !== currentIdx + 1) return res.status(400).json({ message: `Staff can only advance one step at a time. Current: "${order.status}"` });
@@ -137,8 +137,8 @@ async function updateStatus(req, res) {
         res.status(500).json({ message: 'Server Error while updating status' });
     }
 }
-router.put('/:id/status', protect, checkRole('Admin', 'Staff', 'Manager'), updateStatus);
-router.patch('/:id/status', protect, checkRole('Admin', 'Staff', 'Manager'), updateStatus);
+router.put('/:id/status', protect, checkRole('Admin', 'Delivery Partner', 'Manager'), updateStatus);
+router.patch('/:id/status', protect, checkRole('Admin', 'Delivery Partner', 'Manager'), updateStatus);
 
 // ── PATCH /:id/cancel  –  Customer cancels within 5 minutes ───
 const CANCEL_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
@@ -194,7 +194,7 @@ router.delete('/:id', protect, checkRole('Manager', 'Admin'), async (req, res) =
 });
 
 // ── DELETE /:id/override  –  Staff deletes with Manager PIN ─────
-router.delete('/:id/override', protect, checkRole('Staff'), async (req, res) => {
+router.delete('/:id/override', protect, checkRole('Delivery Partner'), async (req, res) => {
     try {
         const { managerPin } = req.body;
         if (!managerPin) return res.status(400).json({ success: false, message: 'Manager PIN is required.' });

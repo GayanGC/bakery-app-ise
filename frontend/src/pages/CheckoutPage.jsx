@@ -104,7 +104,14 @@ function CheckoutPage() {
                                         name="postalCode"
                                         required
                                         value={form.postalCode}
-                                        onChange={handleChange}
+                                        onChange={(e) => {
+                                            const val = e.target.value.replace(/\D/g, '').slice(0, 5);
+                                            setForm({ ...form, postalCode: val });
+                                        }}
+                                        type="text"
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
+                                        maxLength={5}
                                         placeholder="00100"
                                         className="block w-full px-4 py-3 bg-brand-50 border border-brand-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
                                     />

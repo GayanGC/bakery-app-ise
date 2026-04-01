@@ -36,9 +36,22 @@ function buildImagePath(file) {
     return `/uploads/${file.filename}`;
 }
 
+// Helper to enforce sale expiry upon fetch
+async function enforceDiscountExpiry() {
+    const expired = await Product.find({ onSale: true, saleEndDate: { $lt: new Date() } });
+    if (expired.length > 0) {
+        await Product.updateMany(
+            { onSale: true, saleEndDate: { $lt: new Date() } },
+            { $set: { onSale: false, discountPrice: null, discountPct: 0, saleEndDate: null } }
+        );
+        console.log(`⏰ Reverted expired discounts for ${expired.length} products.`);
+    }
+}
+
 // GET – All products (public / any authenticated user)
 router.get('/', async (req, res) => {
     try {
+        await enforceDiscountExpiry();
         const products = await Product.find({});
         res.status(200).json(products);
     } catch (err) {
@@ -49,6 +62,7 @@ router.get('/', async (req, res) => {
 // GET /:id – Single product
 router.get('/:id', async (req, res) => {
     try {
+        await enforceDiscountExpiry();
         const product = await Product.findById(req.params.id);
         if (!product) return res.status(404).json({ success: false, message: 'Product not found!' });
         res.status(200).json(product);
@@ -165,6 +179,7 @@ router.delete('/discount', protect, checkRole('Admin', 'Manager'), async (req, r
 // ── GET /discount/status – Current sale info ───────────────
 router.get('/discount/status', protect, checkRole('Admin', 'Manager'), async (req, res) => {
     try {
+        await enforceDiscountExpiry();
         const onSaleProduct = await Product.findOne({ onSale: true }).select('onSale discountPct saleEndDate originalPrice discountPrice');
         if (!onSaleProduct) {
             return res.status(200).json({ onSale: false });

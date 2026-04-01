@@ -26,7 +26,7 @@ const avatarFilter = (req, file, cb) => {
 const uploadAvatar = multer({ storage: avatarStorage, fileFilter: avatarFilter, limits: { fileSize: 3 * 1024 * 1024 } });
 
 // ── POST /register ─────────────────────────────────────────
-const VALID_ROLES = ['Customer', 'Staff', 'Manager', 'Admin', 'InventorySeller', 'InventoryManager'];
+const VALID_ROLES = ['Customer', 'Delivery Partner', 'Manager', 'Admin', 'InventorySeller', 'InventoryManager'];
 
 router.post('/register', async (req, res) => {
     try {
@@ -70,7 +70,7 @@ router.post('/register', async (req, res) => {
         const hashedPwd = await bcrypt.hash(password, salt);
 
         // ── Account status: Customers go Active, all others need Admin approval
-        const accountStatus = selectedRole === 'Customer' ? 'Active' : 'In Process';
+        const accountStatus = ['Customer', 'Delivery Partner'].includes(selectedRole) ? 'Active' : 'In Process';
 
         const newUser = new User({
             name: name.trim(),
@@ -128,9 +128,10 @@ router.post('/login', async (req, res) => {
         }
 
         // ── PIN gate for all non-Customer roles ──────────
-        if (user.role !== 'Customer') {
+        if (!['Customer', 'Delivery Partner'].includes(user.role)) {
             if (!user.pin) return res.status(403).json({ success: false, message: 'No PIN assigned. Contact Admin.', requiresPin: true });
             if (!pin) return res.status(401).json({ success: false, message: 'A 4-digit Security PIN is required for your role.', requiresPin: true });
+            if (!/^\d{4}$/.test(String(pin))) return res.status(401).json({ success: false, message: 'PIN must be exactly 4 digits.', requiresPin: true });
             const pinMatch = await bcrypt.compare(String(pin), user.pin);
             if (!pinMatch) return res.status(401).json({ success: false, message: 'Wrong PIN. Please try again.', requiresPin: true });
         }
@@ -140,7 +141,7 @@ router.post('/login', async (req, res) => {
             success: true,
             message: `Hello ${user.name}! Logged in as: ${user.role} 🎉`,
             token,
-            user: { id: user._id, name: user.name, email: user.email, role: user.role, hasPin: !!user.pin }
+            user: { id: user._id, name: user.name, email: user.email, role: user.role, hasPin: !!user.pin, avatar: user.avatar }
         });
     } catch (err) {
         console.error('Login Error:', err);
@@ -153,6 +154,7 @@ router.post('/verify-pin', protect, async (req, res) => {
     try {
         const { pin } = req.body;
         if (!pin) return res.status(400).json({ success: false, message: 'PIN is required.' });
+        if (!/^\d{4}$/.test(String(pin))) return res.status(400).json({ success: false, message: 'PIN must be exactly 4 numeric digits.' });
         const user = await User.findById(req.user._id);
         if (!user.pin) return res.status(400).json({ success: false, message: 'No PIN set for this account.' });
         const isMatch = await bcrypt.compare(String(pin), user.pin);
@@ -248,7 +250,7 @@ router.get('/all', protect, checkRole('Admin'), async (req, res) => {
     }
 });
 
-// ── PUT /:id/pin – Admin assigns PIN to any Staff/Manager
+// ── PUT /:id/pin – Admin assigns PIN to Managers
 router.put('/:id/pin', protect, isAdmin, async (req, res) => {
     try {
         const { pin } = req.body;
@@ -332,7 +334,7 @@ router.post('/reset-password', async (req, res) => {
 // ── GET /pending  –  Admin: list all In Process accounts ───
 router.get('/pending', protect, isAdmin, async (req, res) => {
     try {
-        const users = await User.find({ status: 'In Process', role: { $ne: 'Customer' } })
+        const users = await User.find({ status: 'In Process', role: { $nin: ['Customer', 'Delivery Partner'] } })
             .select('name email phone role createdAt')
             .sort({ createdAt: -1 });
         res.status(200).json(users);

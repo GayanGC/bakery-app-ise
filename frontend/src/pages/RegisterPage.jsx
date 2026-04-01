@@ -4,7 +4,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import api from '../api/axios';
 
 // ── Validation rules ────────────────────────────────────────
-const VALID_ROLES = ['Customer', 'Staff', 'Manager', 'Admin', 'InventoryManager', 'InventorySeller'];
+const VALID_ROLES = ['Customer', 'Delivery Partner', 'Manager', 'Admin', 'InventoryManager', 'InventorySeller'];
 
 const validators = {
     name: (v) => {
@@ -157,7 +157,7 @@ export default function RegisterPage() {
                         style={{ fontFamily: '"Playfair Display", serif' }}>
                         Create Account
                     </h2>
-                    <p className="mt-1 text-sm text-slate-500">Join the Bakery Management system.</p>
+                    <p className="mt-1 text-sm text-slate-500">Join the Sweet Delights system.</p>
                 </div>
 
                 {/* Server-level error banner */}
@@ -207,7 +207,7 @@ export default function RegisterPage() {
                         <label className="block text-sm font-semibold text-brand-800 mb-1">
                             Phone Number <span className="text-red-500">*</span>
                         </label>
-                        <input type="tel" name="phone" placeholder="0712345678"
+                        <input type="text" inputMode="numeric" pattern="[0-9]*" name="phone" placeholder="0712345678"
                             maxLength={10}
                             className={inputCls('phone')} value={form.phone}
                             onChange={handleChange} onBlur={handleBlur} />
@@ -222,7 +222,7 @@ export default function RegisterPage() {
                         <select name="role" className={inputCls('role')} value={form.role}
                             onChange={handleChange} onBlur={handleBlur}>
                             <option value="Customer">Customer</option>
-                            <option value="Staff">Staff</option>
+                            <option value="Delivery Partner">Delivery Partner</option>
                             <option value="Manager">Manager</option>
                             <option value="Admin">Admin</option>
                             <option value="InventoryManager">Inventory Manager</option>

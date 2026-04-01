@@ -7,15 +7,29 @@ const RawMaterial = require('./RawMaterial');
 const { protect } = require('../middleware/authMiddleware');
 const { checkRole } = require('../middleware/checkRole');
 
+const RequestHistory = require('./RequestHistory');
+
 // GET / — all requests
 router.get('/', protect, checkRole('InventorySeller', 'InventoryManager', 'Admin', 'Manager'), async (req, res) => {
     try {
-        const requests = await PurchaseRequest.find({})
+        const activeRequests = await PurchaseRequest.find({})
             .populate('requestedBy', 'name email')
             .populate('material', 'name unit')
-            .sort({ createdAt: -1 });
-        res.status(200).json(requests);
+            .lean();
+
+        const historyRequests = await RequestHistory.find({})
+            .populate('requestedBy', 'name email')
+            .populate('material', 'name unit')
+            .lean();
+
+        const combined = [...activeRequests, ...historyRequests].map(r => ({
+            ...r,
+            materialName: r.material?.name || 'Unknown Material'
+        })).sort((a,b) => new Date(b.createdAt || Date.now()) - new Date(a.createdAt || Date.now()));
+
+        res.status(200).json(combined);
     } catch (err) {
+        console.error('Fetch Requests Error:', err);
         res.status(500).json({ message: 'Error fetching purchase requests', detail: err.message });
     }
 });
@@ -48,13 +62,32 @@ router.put('/:id/status', protect, checkRole('InventorySeller', 'Admin'), async 
         const request = await PurchaseRequest.findById(req.params.id);
         if (!request) return res.status(404).json({ message: 'Purchase request not found.' });
         if (request.status === 'Received') return res.status(400).json({ message: 'Already marked as Received.' });
+        if (status === 'Sent' || status === 'Completed') {
+            const RequestHistory = require('./RequestHistory');
+            const historyEntry = new RequestHistory({
+                material: request.material,
+                requestedBy: request.requestedBy,
+                quantity: request.quantity,
+                unit: request.unit,
+                status: 'Sent', 
+                approvedBy: req.user._id,
+                notes: request.notes,
+                completedAt: new Date()
+            });
+            await historyEntry.save();
+            await PurchaseRequest.findByIdAndDelete(request._id);
+            console.log(`📮 Purchase ${request._id} → Sent (Moved to History by ${req.user.email})`);
+            return res.status(200).json({ message: `Marked as Sent ✅`, request: historyEntry });
+        }
+
+        // fallback for other statuses
         request.status = status;
-        if (status === 'Sent') request.sentAt = new Date();
         if (status === 'Received') request.receivedAt = new Date();
         const updated = await request.save();
         console.log(`📮 Purchase ${request._id} → ${status} (by ${req.user.email})`);
         res.status(200).json({ message: `Marked as ${status} ✅`, request: updated });
     } catch (err) {
+        console.error('Update Request Status Error:', err);
         res.status(500).json({ message: 'Error updating status', detail: err.message });
     }
 });

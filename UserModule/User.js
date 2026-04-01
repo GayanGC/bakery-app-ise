@@ -2,7 +2,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const VALID_ROLES = ['Customer', 'Staff', 'Manager', 'Admin', 'InventorySeller', 'InventoryManager'];
+const VALID_ROLES = ['Customer', 'Delivery Partner', 'Manager', 'Admin', 'InventorySeller', 'InventoryManager'];
 
 const userSchema = new mongoose.Schema({
 

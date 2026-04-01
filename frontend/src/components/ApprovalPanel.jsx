@@ -57,7 +57,7 @@ function ApproveModal({ user, onConfirm, onClose }) {
                     <div>
                         <label className="block text-sm font-semibold text-brand-800 mb-1">Security PIN</label>
                         <input
-                            type="password" inputMode="numeric" maxLength={4}
+                            type="password" inputMode="numeric" pattern="[0-9]*" maxLength={4}
                             value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
                             placeholder="••••"
                             className="w-full px-4 py-3 bg-brand-50 border border-brand-200 rounded-xl text-center text-2xl tracking-widest font-bold focus:outline-none focus:ring-2 focus:ring-green-400"

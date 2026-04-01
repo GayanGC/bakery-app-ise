@@ -44,7 +44,7 @@ async function sendOrderConfirmation(toEmail, order, customerName) {
     const html = `
     <div style="font-family:sans-serif;max-width:560px;margin:auto;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
       <div style="background:#4B2C20;padding:24px 32px;">
-        <h1 style="color:#fff;margin:0;font-size:22px;">🍞 Bakery Order Confirmed!</h1>
+        <h1 style="color:#fff;margin:0;font-size:22px;">🍞 Sweet Delights Order Confirmed!</h1>
       </div>
       <div style="padding:24px 32px;">
         <p style="color:#374151;">Hi <strong>${customerName}</strong>, your order has been placed successfully!</p>
@@ -73,7 +73,7 @@ async function sendOrderConfirmation(toEmail, order, customerName) {
     </div>`;
 
     await transporter.sendMail({
-        from: `"🍞 Bakery System" <${process.env.EMAIL_USER}>`,
+        from: `"🍞 Sweet Delights" <${process.env.EMAIL_USER}>`,
         to: toEmail,
         subject: `Order Confirmed – #${String(order._id).slice(-8).toUpperCase()}`,
         html,
@@ -107,7 +107,7 @@ async function sendLowStockAlert(material) {
     </div>`;
 
     await transporter.sendMail({
-        from: `"🍞 Bakery Inventory" <${process.env.EMAIL_USER}>`,
+        from: `"🍞 Sweet Delights Inventory" <${process.env.EMAIL_USER}>`,
         to,
         subject: `⚠️ Low Stock: ${material.name} (${material.quantity} ${material.unit} left)`,
         html,
@@ -138,7 +138,7 @@ async function sendPasswordResetOtp(toEmail, name, otp) {
       </div>
     </div>`;
     await transporter.sendMail({
-        from: `"🍞 Bakery System" <${process.env.EMAIL_USER}>`,
+        from: `"🍞 Sweet Delight" <${process.env.EMAIL_USER}>`,
         to: toEmail,
         subject: `Password Reset OTP: ${otp}`,
         html,

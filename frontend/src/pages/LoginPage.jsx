@@ -67,10 +67,10 @@ function BakeryHero() {
             <div className="mt-8 text-center z-10">
                 <h2 className="text-3xl font-bold text-white leading-tight"
                     style={{ fontFamily: '"Playfair Display", serif' }}>
-                    Fresh. Warm.<br />Every Morning.
+                    Sweet Delights
                 </h2>
                 <p className="mt-3 text-sm text-white/70 font-light tracking-wide">
-                    Bakery Management System
+                    Your Premium Bakery
                 </p>
                 {/* Decorative dots */}
                 <div className="flex justify-center gap-2 mt-5">
@@ -113,7 +113,7 @@ export default function LoginPage() {
     const { login } = useAuth();
 
     const getHome = (role) => {
-        const map = { Admin: '/admin', Manager: '/admin', Staff: '/orders', Customer: '/shop', InventoryManager: '/inventory', InventorySeller: '/purchases' };
+        const map = { Admin: '/admin', Manager: '/admin', 'Delivery Partner': '/orders', Customer: '/shop', InventoryManager: '/inventory', InventorySeller: '/purchases' };
         return map[role] || '/shop';
     };
 
@@ -160,7 +160,7 @@ export default function LoginPage() {
                             <span className="text-3xl">{phase === 1 ? '🥐' : '🔒'}</span>
                         </div>
                         <h1 className="text-3xl font-extrabold text-brand-800" style={{ fontFamily: '"Playfair Display", serif' }}>
-                            Bakery Management
+                            Sweet Delights
                         </h1>
                     </div>
 

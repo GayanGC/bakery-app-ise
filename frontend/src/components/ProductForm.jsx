@@ -108,9 +108,14 @@ function ProductForm({ product, onClose, onSaved }) {
                                     type="number"
                                     name="price"
                                     step="0.01"
+                                    min="0"
                                     required
                                     value={form.price}
-                                    onChange={handleChange}
+                                    onChange={e => {
+                                        const val = parseFloat(e.target.value);
+                                        if (val < 0) e.target.value = 0;
+                                        handleChange(e);
+                                    }}
                                     className="mt-1 block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
                                     placeholder="15.99"
                                 />
@@ -120,9 +125,14 @@ function ProductForm({ product, onClose, onSaved }) {
                                 <input
                                     type="number"
                                     name="countInStock"
+                                    min="0"
                                     required
                                     value={form.countInStock}
-                                    onChange={handleChange}
+                                    onChange={e => {
+                                        const val = parseInt(e.target.value || 0);
+                                        if (val < 0) e.target.value = 0;
+                                        handleChange(e);
+                                    }}
                                     className="mt-1 block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
                                     placeholder="20"
                                 />

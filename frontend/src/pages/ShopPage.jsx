@@ -91,9 +91,18 @@ function ShopPage() {
                                             style={{ fontFamily: '"Playfair Display", serif' }}>
                                             {product.name}
                                         </h3>
-                                        <span className="ml-2 shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-brand-500 text-white shadow-sm">
-                                            Rs. {product.price}
-                                        </span>
+                                        {product.onSale ? (
+                                            <div className="flex flex-col items-end">
+                                                <span className="text-[10px] pb-0.5 text-slate-400 line-through">Rs. {product.originalPrice}</span>
+                                                <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white shadow-sm">
+                                                    Rs. {product.discountPrice}
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <span className="ml-2 shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-brand-500 text-white shadow-sm">
+                                                Rs. {product.price}
+                                            </span>
+                                        )}
                                     </div>
                                     <p className="text-[10px] font-semibold text-brand-500 uppercase tracking-widest mb-2">
                                         {product.category}

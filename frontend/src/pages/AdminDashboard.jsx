@@ -19,9 +19,9 @@ function PinModal({ onConfirm, onCancel, loading }) {
                 </h3>
                 <p className="text-sm text-slate-500 mb-5">Enter your 4-digit PIN to confirm deletion.</p>
                 <input
-                    type="password" maxLength={4} placeholder="••••"
+                    type="password" inputMode="numeric" pattern="[0-9]*" maxLength={4} placeholder="••••"
                     className="block w-full px-4 py-3 text-center text-2xl tracking-widest bg-brand-50 border border-brand-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-400 mb-5"
-                    value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))} />
+                    value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))} />
                 <div className="flex gap-3">
                     <button onClick={onCancel}
                         className="flex-1 py-2.5 font-semibold text-sm text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all">

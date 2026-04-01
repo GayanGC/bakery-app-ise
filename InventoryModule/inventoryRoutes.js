@@ -4,6 +4,8 @@ const express = require('express');
 const router = express.Router();
 const RawMaterial = require('./RawMaterial');
 const WasteLog = require('./WasteLog');
+const PurchaseRequest = require('./PurchaseRequest');
+const RequestHistory = require('./RequestHistory');
 const { protect } = require('../middleware/authMiddleware');
 const { checkRole } = require('../middleware/checkRole');
 const { sendLowStockAlert } = require('../utils/mailer');
@@ -110,6 +112,48 @@ router.get('/waste', protect, canManage, async (req, res) => {
         res.status(200).json(logs);
     } catch (err) {
         res.status(500).json({ message: 'Error fetching waste logs', detail: err.message });
+    }
+});
+
+// PATCH /request/:id — move Inventory request to History
+router.patch('/request/:id', protect, checkRole('InventorySeller', 'InventoryManager', 'Admin', 'Manager'), async (req, res) => {
+    try {
+        const reqId = req.params.id;
+        const purchaseReq = await PurchaseRequest.findById(reqId);
+        
+        if (!purchaseReq) {
+            return res.status(404).json({ message: 'Purchase request not found' });
+        }
+
+        // Update raw material stock (+ stock if seller fulfills the request)
+        const material = await RawMaterial.findById(purchaseReq.material);
+        if (material) {
+            material.quantity += purchaseReq.quantity;
+            await material.save();
+        }
+
+        // Move to History
+        const historyRecord = new RequestHistory({
+            material: purchaseReq.material,
+            requestedBy: purchaseReq.requestedBy,
+            quantity: purchaseReq.quantity,
+            unit: purchaseReq.unit,
+            supplier: purchaseReq.supplier,
+            status: 'Completed',
+            approvedBy: req.user._id,
+            notes: purchaseReq.notes,
+            completedAt: new Date()
+        });
+
+        await historyRecord.save();
+        
+        // Delete original from active queue
+        await PurchaseRequest.findByIdAndDelete(reqId);
+        
+        console.log(`📦 Request ${reqId} Completed & Moved to History by ${req.user.email}`);
+        res.status(200).json({ message: 'Request Completed and moved to History ✅', history: historyRecord });
+    } catch (err) {
+        res.status(500).json({ message: 'Failed to process request', detail: err.message });
     }
 });
 

@@ -85,7 +85,7 @@ export default function OrderHistoryPage() {
     const [cancelLoading, setCancelLoading] = useState(false);
     const [cancelError,   setCancelError]   = useState('');
 
-    const isStaff = hasRole('Staff', 'Manager', 'Admin');
+    const isStaff = hasRole('Delivery Partner', 'Manager', 'Admin');
     const canDelete = hasRole('Manager', 'Admin');
 
     const fetchOrders = async () => {
@@ -121,7 +121,7 @@ export default function OrderHistoryPage() {
         setPinLoading(true);
         setPinError('');
         try {
-            if (hasRole('Staff') && !hasRole('Manager', 'Admin')) {
+            if (hasRole('Delivery Partner') && !hasRole('Manager', 'Admin')) {
                 // Staff requires Manager PIN override
                 await api.delete(`/orders/${pinTarget}/override`, { data: { managerPin: pin } });
             } else {

@@ -104,7 +104,7 @@ export default function Navbar() {
                             <div className="hidden sm:block">
                                 <p className="text-lg font-extrabold text-brand-100 leading-tight tracking-tight"
                                     style={{ fontFamily: '"Playfair Display", serif' }}>
-                                    Bakery Management
+                                    Sweet Delights
                                 </p>
                                 {user && (
                                     <p className="text-[10px] text-brand-400 leading-none">

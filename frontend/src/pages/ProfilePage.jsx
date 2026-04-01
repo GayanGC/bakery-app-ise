@@ -10,7 +10,7 @@ import ProductImage from '../components/ProductImage';
 const ROLE_BADGE = {
     Admin:            'bg-rose-100   text-rose-700   border-rose-200',
     Manager:          'bg-amber-100  text-amber-700  border-amber-200',
-    Staff:            'bg-purple-100 text-purple-700 border-purple-200',
+    'Delivery Partner': 'bg-purple-100 text-purple-700 border-purple-200',
     Customer:         'bg-sky-100    text-sky-700    border-sky-200',
     InventoryManager: 'bg-blue-100   text-blue-700   border-blue-200',
     InventorySeller:  'bg-teal-100   text-teal-700   border-teal-200',
@@ -257,7 +257,10 @@ export default function ProfilePage() {
                                 </Field>
 
                                 <Field label="Phone Number" error={errors.phone}>
-                                    <input name="phone" type="tel" value={form.phone} onChange={handleChange}
+                                    <input name="phone" type="text" inputMode="numeric" pattern="[0-9]*" value={form.phone} onChange={(e) => {
+                                        e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                                        handleChange(e);
+                                    }}
                                         placeholder="10 digits e.g. 0712345678" maxLength={10} className={inputCls} />
                                     <div className="flex gap-1 mt-1">
                                         {[...Array(10)].map((_, i) => (
