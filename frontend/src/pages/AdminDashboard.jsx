@@ -52,6 +52,33 @@ export default function AdminDashboard() {
     const [pinLoading, setPinLoading] = useState(false);
     const [pinError, setPinError] = useState('');
 
+    const [now, setNow] = useState(Date.now());
+    useEffect(() => {
+        const timer = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    const [cancelTarget,  setCancelTarget]  = useState(null);
+    const [cancelLoading, setCancelLoading] = useState(false);
+    const [cancelError,   setCancelError]   = useState('');
+
+    const handleCancelOrder = async () => {
+        if (!cancelTarget) return;
+        setCancelLoading(true);
+        setCancelError('');
+        try {
+            await api.patch(`/orders/${cancelTarget}/cancel`);
+            setCancelTarget(null);
+            fetchOrders();
+        } catch (e) {
+            setCancelError(e.response?.data?.message || 'Could not cancel order.');
+            setCancelLoading(false);
+        }
+    };
+
+    const cancelSecsLeft = (createdAt) =>
+        Math.max(0, Math.round((new Date(createdAt).getTime() + 5*60*1000 - now) / 1000));
+
     const fetchAnalytics = async () => {
         try {
             const { data } = await api.get('/orders/analytics');
@@ -94,9 +121,12 @@ export default function AdminDashboard() {
 
 
     const statusBadge = {
+        Placed: 'bg-slate-100 text-slate-600',
         Pending: 'bg-amber-100 text-amber-700',
         Processing: 'bg-blue-100  text-blue-700',
-        Delivered: 'bg-green-100 text-green-700'
+        'Out for Delivery': 'bg-indigo-100 text-indigo-700',
+        Delivered: 'bg-green-100 text-green-700',
+        Cancelled: 'bg-red-100 text-red-700'
     };
 
     const S = analytics?.summary;
@@ -194,11 +224,20 @@ export default function AdminDashboard() {
                                                 <select
                                                     value={o.status}
                                                     onChange={e => handleStatusChange(o._id, e.target.value)}
-                                                    className={`text-xs font-bold px-2 py-1 rounded-full border-0 cursor-pointer focus:ring-2 focus:ring-brand-400 ${statusBadge[o.status]}`}>
-                                                    <option value="Pending">Pending</option>
+                                                    className={`text-xs font-bold px-2 py-1 rounded-full border-0 cursor-pointer focus:ring-2 focus:ring-brand-400 ${statusBadge[o.status] || 'bg-slate-100'}`}>
+                                                    <option value="Placed">Placed</option>
                                                     <option value="Processing">Processing</option>
+                                                    <option value="Out for Delivery">Out for Delivery</option>
                                                     <option value="Delivered">Delivered</option>
+                                                    <option value="Cancelled" disabled>Cancelled</option>
                                                 </select>
+                                                {o.status === 'Placed' && cancelSecsLeft(o.createdAt) > 0 && (
+                                                    <div className="mt-2 flex">
+                                                        <button onClick={() => { setCancelTarget(o._id); setCancelError(''); }} className="text-[10px] font-bold text-orange-600 bg-orange-100 px-2 py-0.5 rounded border border-orange-200 hover:bg-orange-200">
+                                                            🚫 Cancel ({Math.floor(cancelSecsLeft(o.createdAt)/60)}m {cancelSecsLeft(o.createdAt)%60}s)
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </td>
                                             <td className="px-5 py-4">
                                                 {pinError && pinTarget === o._id && (
@@ -230,6 +269,33 @@ export default function AdminDashboard() {
                     onConfirm={handleDeleteConfirm}
                     onCancel={() => { setPinTarget(null); setPinError(''); }}
                 />
+            )}
+
+            {cancelTarget && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl p-8 w-full max-w-sm shadow-2xl text-center">
+                        <div className="text-4xl mb-3">🚫</div>
+                        <h3 className="text-xl font-extrabold text-slate-800 mb-2"
+                            style={{ fontFamily: '"Playfair Display", serif' }}>Cancel This Order?</h3>
+                        <p className="text-sm text-slate-500 mb-2">
+                            This cannot be undone. Items will be restocked.
+                        </p>
+                        {cancelError && <p className="text-xs text-red-500 mb-3">{cancelError}</p>}
+                        <div className="flex gap-3 mt-5">
+                            <button
+                                onClick={() => { setCancelTarget(null); setCancelError(''); }}
+                                className="flex-1 py-2.5 font-semibold text-sm text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50">
+                                Keep Order
+                            </button>
+                            <button
+                                onClick={handleCancelOrder}
+                                disabled={cancelLoading}
+                                className="flex-1 py-2.5 font-semibold text-sm text-white bg-red-500 rounded-xl hover:bg-red-600 disabled:opacity-50">
+                                {cancelLoading ? 'Cancelling…' : 'Yes, Cancel'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

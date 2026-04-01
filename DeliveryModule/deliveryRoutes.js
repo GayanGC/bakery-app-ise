@@ -10,7 +10,7 @@ const { checkRole } = require('../middleware/checkRole');
 const STAGES = ['Placed', 'Processing', 'Out for Delivery', 'Delivered'];
 
 // GET /api/delivery  –  Orders queued for delivery (Staff / Admin)
-router.get('/', protect, checkRole('Delivery Partner', 'Admin', 'Manager'), async (req, res) => {
+router.get('/', protect, checkRole('Staff', 'Admin', 'Manager'), async (req, res) => {
     try {
         // Return all non-Delivered orders by default for delivery board
         const orders = await Order.find({ status: { $ne: 'Delivered' } })
@@ -23,7 +23,7 @@ router.get('/', protect, checkRole('Delivery Partner', 'Admin', 'Manager'), asyn
 });
 
 // GET /api/delivery/completed  –  Delivered orders
-router.get('/completed', protect, checkRole('Delivery Partner', 'Admin', 'Manager'), async (req, res) => {
+router.get('/completed', protect, checkRole('Staff', 'Admin', 'Manager'), async (req, res) => {
     try {
         const orders = await Order.find({ status: 'Delivered' })
             .populate('user', 'name email')
@@ -35,7 +35,7 @@ router.get('/completed', protect, checkRole('Delivery Partner', 'Admin', 'Manage
 });
 
 // PATCH /api/delivery/:id/status  –  Advance delivery status (Staff: forward-only)
-router.patch('/:id/status', protect, checkRole('Delivery Partner', 'Admin', 'Manager'), async (req, res) => {
+router.patch('/:id/status', protect, checkRole('Staff', 'Admin', 'Manager'), async (req, res) => {
     try {
         const { status, deliveryPerson } = req.body;
         if (!STAGES.includes(status)) {
@@ -45,7 +45,7 @@ router.patch('/:id/status', protect, checkRole('Delivery Partner', 'Admin', 'Man
         if (!order) return res.status(404).json({ message: 'Order not found' });
 
         // Staff must advance one step at a time
-        if (req.user.role === 'Delivery Partner') {
+        if (req.user.role === 'Staff') {
             const currentIdx = STAGES.indexOf(order.status);
             const nextIdx = STAGES.indexOf(status);
             if (nextIdx !== currentIdx + 1) {

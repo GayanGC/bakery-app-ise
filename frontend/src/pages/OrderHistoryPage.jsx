@@ -85,7 +85,7 @@ export default function OrderHistoryPage() {
     const [cancelLoading, setCancelLoading] = useState(false);
     const [cancelError,   setCancelError]   = useState('');
 
-    const isStaff = hasRole('Delivery Partner', 'Manager', 'Admin');
+    const isStaff = hasRole('Staff', 'Manager', 'Admin');
     const canDelete = hasRole('Manager', 'Admin');
 
     const fetchOrders = async () => {
@@ -121,7 +121,7 @@ export default function OrderHistoryPage() {
         setPinLoading(true);
         setPinError('');
         try {
-            if (hasRole('Delivery Partner') && !hasRole('Manager', 'Admin')) {
+            if (hasRole('Staff') && !hasRole('Manager', 'Admin')) {
                 // Staff requires Manager PIN override
                 await api.delete(`/orders/${pinTarget}/override`, { data: { managerPin: pin } });
             } else {
@@ -150,9 +150,15 @@ export default function OrderHistoryPage() {
         }
     };
 
+    const [now, setNow] = useState(Date.now());
+    useEffect(() => {
+        const timer = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(timer);
+    }, []);
+
     // Returns remaining seconds in cancellation window (negative = expired)
     const cancelSecsLeft = (createdAt) =>
-        Math.max(0, Math.round((new Date(createdAt).getTime() + 5*60*1000 - Date.now()) / 1000));
+        Math.max(0, Math.round((new Date(createdAt).getTime() + 5*60*1000 - now) / 1000));
 
     const fmt = (d) => new Date(d).toLocaleDateString('en-GB', {
         day: 'numeric', month: 'short', year: 'numeric',
@@ -286,8 +292,8 @@ export default function OrderHistoryPage() {
                                     </div>
                                 )}
 
-                                {/* 🚫 Cancel Order — Customer, Placed + within 5 min */}
-                                {!isStaff && order.status === 'Placed' && cancelSecsLeft(order.createdAt) > 0 && (
+                                {/* 🚫 Cancel Order — Placed + within 5 min */}
+                                {order.status === 'Placed' && cancelSecsLeft(order.createdAt) > 0 && (
                                     <div className="mt-3 pt-3 border-t border-brand-50">
                                         <button
                                             onClick={() => { setCancelTarget(order._id); setCancelError(''); }}

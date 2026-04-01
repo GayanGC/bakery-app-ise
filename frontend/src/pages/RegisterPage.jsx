@@ -4,7 +4,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import api from '../api/axios';
 
 // ── Validation rules ────────────────────────────────────────
-const VALID_ROLES = ['Customer', 'Delivery Partner', 'Manager', 'Admin', 'InventoryManager', 'InventorySeller'];
+const VALID_ROLES = ['Customer', 'Staff', 'Manager', 'InventoryManager', 'InventorySeller'];
 
 const validators = {
     name: (v) => {
@@ -222,9 +222,8 @@ export default function RegisterPage() {
                         <select name="role" className={inputCls('role')} value={form.role}
                             onChange={handleChange} onBlur={handleBlur}>
                             <option value="Customer">Customer</option>
-                            <option value="Delivery Partner">Delivery Partner</option>
+                            <option value="Staff">Staff</option>
                             <option value="Manager">Manager</option>
-                            <option value="Admin">Admin</option>
                             <option value="InventoryManager">Inventory Manager</option>
                             <option value="InventorySeller">Inventory Seller</option>
                         </select>

@@ -10,7 +10,7 @@ import ProductImage from '../components/ProductImage';
 const ROLE_BADGE = {
     Admin:            'bg-rose-100   text-rose-700   border-rose-200',
     Manager:          'bg-amber-100  text-amber-700  border-amber-200',
-    'Delivery Partner': 'bg-purple-100 text-purple-700 border-purple-200',
+    'Staff': 'bg-purple-100 text-purple-700 border-purple-200',
     Customer:         'bg-sky-100    text-sky-700    border-sky-200',
     InventoryManager: 'bg-blue-100   text-blue-700   border-blue-200',
     InventorySeller:  'bg-teal-100   text-teal-700   border-teal-200',

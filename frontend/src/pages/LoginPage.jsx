@@ -113,7 +113,7 @@ export default function LoginPage() {
     const { login } = useAuth();
 
     const getHome = (role) => {
-        const map = { Admin: '/admin', Manager: '/admin', 'Delivery Partner': '/orders', Customer: '/shop', InventoryManager: '/inventory', InventorySeller: '/purchases' };
+        const map = { Admin: '/admin', Manager: '/admin', 'Staff': '/orders', Customer: '/shop', InventoryManager: '/inventory', InventorySeller: '/purchases' };
         return map[role] || '/shop';
     };
 
