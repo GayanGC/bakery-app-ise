@@ -78,8 +78,9 @@ export default function OrderHistoryPage() {
     const [pinLoading, setPinLoading] = useState(false);
     const [pinError, setPinError] = useState('');
 
-    // Delivery person assignment (Admin/Staff)
-    const [deliveryEdits, setDeliveryEdits] = useState({});
+    // Staff assignment dropdown
+    const [staffList, setStaffList] = useState([]);
+    const [assignEdits, setAssignEdits] = useState({});
 
     const [cancelTarget,  setCancelTarget]  = useState(null); // orderId
     const [cancelLoading, setCancelLoading] = useState(false);
@@ -92,7 +93,6 @@ export default function OrderHistoryPage() {
         setLoading(true);
         setError('');
         try {
-            // Customers get ONLY their own orders — enforced both in backend + here
             const endpoint = isStaff ? '/orders' : '/orders/mine';
             const { data } = await api.get(endpoint);
             setOrders(data);
@@ -103,16 +103,23 @@ export default function OrderHistoryPage() {
         }
     };
 
-    useEffect(() => { fetchOrders(); }, []);
+    const fetchStaffList = async () => {
+        try {
+            const { data } = await api.get('/orders/staff');
+            setStaffList(data);
+        } catch { /* non-critical */ }
+    };
+
+    useEffect(() => { fetchOrders(); if (isStaff) fetchStaffList(); }, []);
     useEffect(() => {
         if (toast) { const t = setTimeout(() => setToast(''), 5000); return () => clearTimeout(t); }
     }, [toast]);
 
     const handleStatusChange = async (id, status) => {
         try {
-            const deliveryPerson = deliveryEdits[id] || '';
-            await api.patch(`/orders/${id}/status`, { status, deliveryPerson });
-            setDeliveryEdits(d => { const n = { ...d }; delete n[id]; return n; });
+            const assignedTo = assignEdits[id] || undefined;
+            await api.patch(`/orders/${id}/status`, { status, assignedTo });
+            setAssignEdits(d => { const n = { ...d }; delete n[id]; return n; });
             fetchOrders();
         } catch (e) { alert(e.response?.data?.message || 'Update failed.'); }
     };
@@ -274,10 +281,10 @@ export default function OrderHistoryPage() {
                                     </p>
                                 )}
 
-                                {/* Delivery person (if assigned) */}
-                                {order.deliveryPerson && (
+                                {/* Assigned staff member */}
+                                {order.assignedTo && (
                                     <p className="mt-1 text-xs text-blue-500 font-semibold">
-                                        🛵 Assigned to: {order.deliveryPerson}
+                                        🛵 Assigned to: {order.assignedTo.name || order.assignedTo}
                                     </p>
                                 )}
 
@@ -312,15 +319,18 @@ export default function OrderHistoryPage() {
 
                                         <div className="flex flex-wrap items-center gap-3">
 
-                                            {/* Delivery person input (only for Out for Delivery step) */}
+                                            {/* Staff assignment dropdown (when advancing to Out for Delivery) */}
                                             {order.status === 'Processing' && (
-                                                <input
-                                                    type="text"
-                                                    placeholder="Delivery person name…"
-                                                    className="text-xs px-3 py-1.5 bg-brand-50 border border-brand-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 flex-1 min-w-36"
-                                                    value={deliveryEdits[order._id] || ''}
-                                                    onChange={e => setDeliveryEdits(d => ({ ...d, [order._id]: e.target.value }))}
-                                                />
+                                                <select
+                                                    className="text-xs px-3 py-1.5 bg-brand-50 border border-brand-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 flex-1 min-w-44"
+                                                    value={assignEdits[order._id] || ''}
+                                                    onChange={e => setAssignEdits(d => ({ ...d, [order._id]: e.target.value }))}
+                                                >
+                                                    <option value="">— Assign delivery staff —</option>
+                                                    {staffList.map(s => (
+                                                        <option key={s._id} value={s._id}>{s.name} ({s.email})</option>
+                                                    ))}
+                                                </select>
                                             )}
 
                                             {/* Advance to next stage button */}

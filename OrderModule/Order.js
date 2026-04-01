@@ -23,6 +23,8 @@ const orderSchema = new mongoose.Schema({
         default: 'Placed'
     },
     deliveryPerson: { type: String, default: '' },
+    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    paymentMethod: { type: String, enum: ['Cash on Delivery', 'Online Payment'], default: 'Cash on Delivery' },
     cancelledAt: { type: Date, default: null }
 }, { timestamps: true });
 

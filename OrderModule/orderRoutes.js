@@ -12,27 +12,64 @@ const { protect } = require('../middleware/authMiddleware');
 const { checkRole } = require('../middleware/checkRole');
 const { sendOrderConfirmation } = require('../utils/mailer');
 
-// ── GET /analytics  –  Monthly stats (Admin/Manager) ───────────
+// ── GET /analytics  –  Monthly stats + payment split (Admin/Manager) ──
 router.get('/analytics', protect, checkRole('Admin', 'Manager'), async (req, res) => {
     try {
         const now = new Date();
         const thisYear = now.getFullYear();
         const thisMonth = now.getMonth();
         const sixMonthsAgo = new Date(thisYear, thisMonth - 5, 1);
+
+        // Monthly orders + revenue
         const rawData = await Order.aggregate([
             { $match: { createdAt: { $gte: sixMonthsAgo } } },
-            { $group: { _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } }, orders: { $sum: 1 }, revenue: { $sum: '$totalPrice' } } },
+            { $group: {
+                _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } },
+                orders: { $sum: 1 },
+                revenue: { $sum: '$totalPrice' },
+                onlineRevenue: { $sum: { $cond: [{ $eq: ['$paymentMethod', 'Online Payment'] }, '$totalPrice', 0] } },
+                codRevenue:    { $sum: { $cond: [{ $eq: ['$paymentMethod', 'Cash on Delivery'] }, '$totalPrice', 0] } },
+                onlineOrders:  { $sum: { $cond: [{ $eq: ['$paymentMethod', 'Online Payment'] }, 1, 0] } },
+                codOrders:     { $sum: { $cond: [{ $eq: ['$paymentMethod', 'Cash on Delivery'] }, 1, 0] } }
+            }},
             { $sort: { '_id.year': 1, '_id.month': 1 } }
         ]);
+
+        // All-time payment method totals
+        const [paymentTotals] = await Order.aggregate([
+            { $group: {
+                _id: null,
+                totalOnlineRevenue: { $sum: { $cond: [{ $eq: ['$paymentMethod', 'Online Payment'] }, '$totalPrice', 0] } },
+                totalCodRevenue:    { $sum: { $cond: [{ $eq: ['$paymentMethod', 'Cash on Delivery'] }, '$totalPrice', 0] } },
+                totalOnlineOrders:  { $sum: { $cond: [{ $eq: ['$paymentMethod', 'Online Payment'] }, 1, 0] } },
+                totalCodOrders:     { $sum: { $cond: [{ $eq: ['$paymentMethod', 'Cash on Delivery'] }, 1, 0] } }
+            }}
+        ]);
+
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         const months = [];
         for (let i = 5; i >= 0; i--) {
             const d = new Date(thisYear, thisMonth - i, 1);
             const found = rawData.find(r => r._id.year === d.getFullYear() && r._id.month === d.getMonth() + 1);
-            months.push({ label: `${monthNames[d.getMonth()]} ${d.getFullYear()}`, orders: found?.orders || 0, revenue: found?.revenue || 0 });
+            months.push({
+                label: `${monthNames[d.getMonth()]} ${d.getFullYear()}`,
+                orders: found?.orders || 0,
+                revenue: found?.revenue || 0,
+                onlineRevenue: found?.onlineRevenue || 0,
+                codRevenue: found?.codRevenue || 0
+            });
         }
         const current = months[5]; const previous = months[4];
-        res.status(200).json({ months, summary: { thisMonth: current, lastMonth: previous, ordersChange: current.orders - previous.orders, revenueChange: current.revenue - previous.revenue } });
+        res.status(200).json({
+            months,
+            summary: {
+                thisMonth: current,
+                lastMonth: previous,
+                ordersChange: current.orders - previous.orders,
+                revenueChange: current.revenue - previous.revenue
+            },
+            paymentSplit: paymentTotals || { totalOnlineRevenue: 0, totalCodRevenue: 0, totalOnlineOrders: 0, totalCodOrders: 0 }
+        });
     } catch (err) {
         res.status(500).json({ message: 'Error fetching analytics', detail: err.message });
     }
@@ -58,10 +95,10 @@ router.post('/', protect, async (req, res) => {
             totalPrice += product.price * item.qty;
             enrichedItems.push({ product: product._id, name: product.name, price: product.price, qty: item.qty });
         }
-        const order = new Order({ user: req.user._id, orderItems: enrichedItems, deliveryAddress, totalPrice });
+        const method = paymentMethod === 'Online Payment' ? 'Online Payment' : 'Cash on Delivery';
+        const order = new Order({ user: req.user._id, orderItems: enrichedItems, deliveryAddress, totalPrice, paymentMethod: method });
         const createdOrder = await order.save();
         // ── Atomic payment creation ──────────────────────────────
-        const method = paymentMethod === 'Online Payment' ? 'Online Payment' : 'Cash on Delivery';
         const payment = new Payment({
             order: createdOrder._id, user: req.user._id, amount: totalPrice,
             paymentMethod: method, paymentStatus: method === 'Online Payment' ? 'Completed' : 'Pending',
@@ -81,10 +118,37 @@ router.post('/', protect, async (req, res) => {
     }
 });
 
+// ── GET /staff  –  Active Staff users for assignment dropdown ────
+router.get('/staff', protect, checkRole('Staff', 'Admin', 'Manager'), async (req, res) => {
+    try {
+        const staffUsers = await User.find({ role: 'Staff', status: 'Active' })
+            .select('name email phone')
+            .sort({ name: 1 });
+        res.status(200).json(staffUsers);
+    } catch (err) {
+        res.status(500).json({ message: 'Error fetching staff list', detail: err.message });
+    }
+});
+
+// ── GET /my-assignments  –  Staff: only orders assigned to me ───
+router.get('/my-assignments', protect, checkRole('Staff'), async (req, res) => {
+    try {
+        const orders = await Order.find({ assignedTo: req.user._id })
+            .populate('user', 'name email')
+            .populate('assignedTo', 'name email')
+            .sort({ createdAt: -1 });
+        res.status(200).json(orders);
+    } catch (err) {
+        res.status(500).json({ message: 'Error fetching your assignments', detail: err.message });
+    }
+});
+
 // ── GET /mine  –  Customer's own orders only ────────────────────
 router.get('/mine', protect, async (req, res) => {
     try {
-        const orders = await Order.find({ user: req.user._id }).sort({ createdAt: -1 });
+        const orders = await Order.find({ user: req.user._id })
+            .populate('assignedTo', 'name email')
+            .sort({ createdAt: -1 });
         res.status(200).json(orders);
     } catch (err) {
         res.status(500).json({ message: 'Error fetching your orders' });
@@ -94,7 +158,10 @@ router.get('/mine', protect, async (req, res) => {
 // ── GET /  –  All orders (Staff / Admin / Manager) ─────────────
 router.get('/', protect, checkRole('Staff', 'Admin', 'Manager'), async (req, res) => {
     try {
-        const orders = await Order.find({}).populate('user', 'name email role').sort({ createdAt: -1 });
+        const orders = await Order.find({})
+            .populate('user', 'name email role')
+            .populate('assignedTo', 'name email')
+            .sort({ createdAt: -1 });
         res.status(200).json(orders);
     } catch (err) {
         res.status(500).json({ message: 'Error fetching all orders' });
@@ -104,7 +171,9 @@ router.get('/', protect, checkRole('Staff', 'Admin', 'Manager'), async (req, res
 // ── GET /:id  –  Single order ───────────────────────────────────
 router.get('/:id', protect, async (req, res) => {
     try {
-        const order = await Order.findById(req.params.id).populate('user', 'name email');
+        const order = await Order.findById(req.params.id)
+            .populate('user', 'name email')
+            .populate('assignedTo', 'name email');
         if (!order) return res.status(404).json({ message: 'Order not found' });
         if (order.user._id.toString() !== req.user._id.toString() && !['Staff', 'Admin', 'Manager'].includes(req.user.role)) {
             return res.status(403).json({ message: 'Access denied' });
@@ -119,7 +188,7 @@ router.get('/:id', protect, async (req, res) => {
 const statusFlow = ['Placed', 'Processing', 'Out for Delivery', 'Delivered'];
 async function updateStatus(req, res) {
     try {
-        const { status, deliveryPerson } = req.body;
+        const { status, deliveryPerson, assignedTo } = req.body;
         if (!statusFlow.includes(status)) return res.status(400).json({ message: `Invalid status. Allowed: ${statusFlow.join(' → ')}` });
         const order = await Order.findById(req.params.id);
         if (!order) return res.status(404).json({ message: 'Order not found' });
@@ -130,15 +199,40 @@ async function updateStatus(req, res) {
         }
         order.status = status;
         if (deliveryPerson) order.deliveryPerson = deliveryPerson;
+        if (assignedTo) order.assignedTo = assignedTo;
         const updated = await order.save();
-        console.log(`📦 Order ${order._id} → "${status}"${deliveryPerson ? ` (delivery: ${deliveryPerson})` : ''}`);
-        return res.status(200).json({ message: `Order status updated to "${status}" ✅`, order: updated });
+        const populated = await Order.findById(updated._id).populate('assignedTo', 'name email');
+        console.log(`📦 Order ${order._id} → "${status}"${assignedTo ? ` (assigned: ${assignedTo})` : ''}`);
+        return res.status(200).json({ message: `Order status updated to "${status}" ✅`, order: populated });
     } catch (err) {
         res.status(500).json({ message: 'Server Error while updating status' });
     }
 }
 router.put('/:id/status', protect, checkRole('Admin', 'Staff', 'Manager'), updateStatus);
 router.patch('/:id/status', protect, checkRole('Admin', 'Staff', 'Manager'), updateStatus);
+
+// ── PATCH /:id/deliver  –  Staff marks their assigned order as Delivered ──
+router.patch('/:id/deliver', protect, checkRole('Staff'), async (req, res) => {
+    try {
+        const order = await Order.findById(req.params.id);
+        if (!order) return res.status(404).json({ message: 'Order not found' });
+        if (!order.assignedTo || order.assignedTo.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ message: 'This order is not assigned to you.' });
+        }
+        if (order.status === 'Delivered') {
+            return res.status(400).json({ message: 'Order is already delivered.' });
+        }
+        order.status = 'Delivered';
+        const updated = await order.save();
+        const populated = await Order.findById(updated._id)
+            .populate('user', 'name email')
+            .populate('assignedTo', 'name email');
+        console.log(`✅ Order ${order._id} marked as Delivered by Staff ${req.user.email}`);
+        res.status(200).json({ message: 'Order marked as Delivered! ✅', order: populated });
+    } catch (err) {
+        res.status(500).json({ message: 'Server Error while marking delivery', detail: err.message });
+    }
+});
 
 // ── PATCH /:id/cancel  –  Customer cancels within 5 minutes ───
 const CANCEL_WINDOW_MS = 5 * 60 * 1000; // 5 minutes

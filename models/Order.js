@@ -42,7 +42,9 @@ const orderSchema = new mongoose.Schema({
     },
 
     // Optional: name/ID of delivery person assigned by Staff
-    deliveryPerson: { type: String, default: '' }
+    deliveryPerson: { type: String, default: '' },
+    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    paymentMethod: { type: String, enum: ['Cash on Delivery', 'Online Payment'], default: 'Cash on Delivery' }
 
 }, { timestamps: true });
 

@@ -78,6 +78,7 @@ export default function RegisterPage() {
                 ...prev,
                 role: validateField('role', value),
             }));
+            // Early return to prevent marking untouched fields as touched prematurely
             return;
         }
 
@@ -116,10 +117,22 @@ export default function RegisterPage() {
 
         setLoading(true);
         try {
-            const { data } = await api.post('/users/register', form);
+            // Guarantee role gets submitted exactly as state captures it
+            const payload = {
+                name: form.name.trim(),
+                email: form.email.trim(),
+                phone: form.phone.trim(),
+                password: form.password,
+                role: form.role
+            };
+
+            const { data } = await api.post('/users/register', payload);
+            console.log('Registration Response:', data);
+            
             if (data.status === 'In Process') {
-                // Show approval-pending message, don't redirect yet
-                setPendingMsg('Registration successful! Please wait for Admin approval.');
+                setPendingMsg(`Registration successful! Your new ${form.role} account is waiting for Admin approval.`);
+            } else if (data.success && data.message === 'Saved successfully') {
+                navigate('/login');
             } else {
                 navigate('/login');
             }

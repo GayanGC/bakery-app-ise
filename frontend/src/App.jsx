@@ -16,9 +16,11 @@ import PurchaseRequestsPage from './pages/PurchaseRequestsPage';
 import FeedbackPage from './pages/FeedbackPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ProfilePage from './pages/ProfilePage';
+import StaffDeliveryPortal from './pages/StaffDeliveryPortal';
+import PaymentPage from './pages/PaymentPage';
 
 // Pages that should NOT show the Navbar
-const NO_NAV_PATHS = ['/login', '/register', '/', '/forgot-password'];
+const NO_NAV_PATHS = ['/login', '/register', '/', '/forgot-password', '/payment'];
 
 function AppLayout({ children }) {
   const location = useLocation();
@@ -50,6 +52,12 @@ function App() {
           <Route path="/cart" element={<CartPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/orders" element={<OrderHistoryPage />} />
+
+          {/* ── Staff Delivery Portal ───────────────────── */}
+          <Route path="/staff-portal" element={<StaffDeliveryPortal />} />
+
+          {/* ── Virtual Payment Gateway ───────────────── */}
+          <Route path="/payment" element={<PaymentPage />} />
 
           {/* ── Customer Feedback ─────────────────────── */}
           <Route path="/feedback/:orderId" element={<FeedbackPage />} />

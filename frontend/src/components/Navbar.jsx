@@ -28,24 +28,32 @@ const roleLinks = {
     ],
     Staff: [
         { to: '/shop', label: '🛒 Shop' },
-        { to: '/orders', label: '📋 Order Management' }
+        { to: '/cart', label: '🧺 Cart', isCart: true },
+        { to: '/orders', label: '📋 Order Management' },
+        { to: '/staff-portal', label: '🛵 My Deliveries' }
     ],
     Manager: [
         { to: '/shop', label: '🛒 Shop' },
+        { to: '/cart', label: '🧺 Cart', isCart: true },
         { to: '/orders', label: '📋 Orders' },
         { to: '/admin', label: '📊 Reports' }
     ],
     Admin: [
         { to: '/shop', label: '🛒 Shop' },
+        { to: '/cart', label: '🧺 Cart', isCart: true },
         { to: '/dashboard', label: '⚙️ Products' },
         { to: '/orders', label: '📋 Orders' },
         { to: '/admin', label: '📊 Admin Panel' }
     ],
     InventoryManager: [
+        { to: '/shop', label: '🛒 Shop' },
+        { to: '/cart', label: '🧺 Cart', isCart: true },
         { to: '/inventory', label: '🏭 Inventory', alert: true },
         { to: '/purchases', label: '📋 Stock Requests' }
     ],
     InventorySeller: [
+        { to: '/shop', label: '🛒 Shop' },
+        { to: '/cart', label: '🧺 Cart', isCart: true },
         { to: '/purchases', label: '📋 Purchase Requests' }
     ]
 };

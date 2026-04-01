@@ -18,7 +18,7 @@ const transporter = nodemailer.createTransport({
 // Verify connection configuration
 transporter.verify(function (error, success) {
     if (error) {
-        console.log('Nodemailer Connection Error:', error);
+        console.log('Nodemailer Connection Error:', error.message);
     } else {
         console.log('Server is ready to take our messages');
     }
@@ -72,13 +72,17 @@ async function sendOrderConfirmation(toEmail, order, customerName) {
       </div>
     </div>`;
 
-    await transporter.sendMail({
-        from: `"🍞 Sweet Delights" <${process.env.EMAIL_USER}>`,
-        to: toEmail,
-        subject: `Order Confirmed – #${String(order._id).slice(-8).toUpperCase()}`,
-        html,
-    });
-    console.log(`📧 Order confirmation sent → ${toEmail}`);
+    try {
+        await transporter.sendMail({
+            from: `"🍞 Sweet Delights" <${process.env.EMAIL_USER}>`,
+            to: toEmail,
+            subject: `Order Confirmed – #${String(order._id).slice(-8).toUpperCase()}`,
+            html,
+        });
+        console.log(`📧 Order confirmation sent → ${toEmail}`);
+    } catch (e) {
+        console.log(`⚠️ Mailer failed for order confirmation:`, e.message);
+    }
 }
 
 /**
@@ -106,13 +110,17 @@ async function sendLowStockAlert(material) {
       </div>
     </div>`;
 
-    await transporter.sendMail({
-        from: `"🍞 Sweet Delights Inventory" <${process.env.EMAIL_USER}>`,
-        to,
-        subject: `⚠️ Low Stock: ${material.name} (${material.quantity} ${material.unit} left)`,
-        html,
-    });
-    console.log(`📧 Low-stock alert sent for "${material.name}" → ${to}`);
+    try {
+        await transporter.sendMail({
+            from: `"🍞 Sweet Delights Inventory" <${process.env.EMAIL_USER}>`,
+            to,
+            subject: `⚠️ Low Stock: ${material.name} (${material.quantity} ${material.unit} left)`,
+            html,
+        });
+        console.log(`📧 Low-stock alert sent for "${material.name}" → ${to}`);
+    } catch (e) {
+        console.log(`⚠️ Mailer failed for low-stock alert:`, e.message);
+    }
 }
 
 /**
@@ -137,13 +145,17 @@ async function sendPasswordResetOtp(toEmail, name, otp) {
         <p style="color:#9ca3af;font-size:12px;">If you did not request this, please ignore this email.</p>
       </div>
     </div>`;
-    await transporter.sendMail({
-        from: `"🍞 Sweet Delight" <${process.env.EMAIL_USER}>`,
-        to: toEmail,
-        subject: `Password Reset OTP: ${otp}`,
-        html,
-    });
-    console.log(`📧 Password reset OTP sent → ${toEmail}`);
+    try {
+        await transporter.sendMail({
+            from: `"🍞 Sweet Delight" <${process.env.EMAIL_USER}>`,
+            to: toEmail,
+            subject: `Password Reset OTP: ${otp}`,
+            html,
+        });
+        console.log(`📧 Password reset OTP sent → ${toEmail}`);
+    } catch (e) {
+        console.log(`⚠️ Mailer failed for password reset:`, e.message);
+    }
 }
 
 module.exports = { sendOrderConfirmation, sendLowStockAlert, sendPasswordResetOtp };

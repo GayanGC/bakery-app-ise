@@ -25,6 +25,15 @@ function CheckoutPage() {
             return;
         }
 
+        // Online Payment → redirect to virtual payment gateway
+        if (paymentMethod === 'Online Payment') {
+            navigate('/payment', {
+                state: { deliveryAddress: form, cartItems, cartTotal }
+            });
+            return;
+        }
+
+        // Cash on Delivery → place order directly
         setLoading(true);
         try {
             const orderPayload = {
@@ -33,19 +42,13 @@ function CheckoutPage() {
                     qty: item.cartQty
                 })),
                 deliveryAddress: form,
-                paymentMethod
+                paymentMethod: 'Cash on Delivery'
             };
-
-
             const { data } = await api.post('/orders', orderPayload);
             clearCart();
-            // Pass orderId so My Orders page can highlight the new order
             navigate('/orders', { state: { success: true, orderId: data.order?._id } });
-
         } catch (err) {
-            setError(
-                err.response?.data?.message || 'Failed to place order. Please try again.'
-            );
+            setError(err.response?.data?.message || 'Failed to place order. Please try again.');
         } finally {
             setLoading(false);
         }
