@@ -119,6 +119,66 @@ app.listen(PORT, () => {
             }
         });
         console.log('⏰ Cron: sale auto-revert scheduled (runs every hour).');
+
+        // ── Monthly Sales Report: 1st of every month at 09:00 ─────────
+        const Order = require('./OrderModule/Order');
+        const User  = require('./UserModule/User');
+        const { sendMonthlyReportEmail } = require('./utils/mailer');
+
+        cron.schedule('0 9 1 * *', async () => {
+            try {
+                const now = new Date();
+                const firstOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                const firstOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+                const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+                const monthLabel  = `${monthNames[firstOfLastMonth.getMonth()]} ${firstOfLastMonth.getFullYear()}`;
+
+                // Aggregate last month’s orders
+                const [agg] = await Order.aggregate([
+                    { $match: { createdAt: { $gte: firstOfLastMonth, $lt: firstOfThisMonth } } },
+                    { $group: {
+                        _id: null,
+                        totalOrders:   { $sum: 1 },
+                        totalRevenue:  { $sum: '$totalPrice' },
+                        onlineRevenue: { $sum: { $cond: [{ $eq: ['$paymentMethod', 'Online Payment'] }, '$totalPrice', 0] } },
+                        codRevenue:    { $sum: { $cond: [{ $eq: ['$paymentMethod', 'Cash on Delivery'] }, '$totalPrice', 0] } }
+                    }}
+                ]);
+
+                // Top products by revenue
+                const topProducts = await Order.aggregate([
+                    { $match: { createdAt: { $gte: firstOfLastMonth, $lt: firstOfThisMonth } } },
+                    { $unwind: '$orderItems' },
+                    { $group: {
+                        _id: '$orderItems.name',
+                        unitsSold: { $sum: '$orderItems.qty' },
+                        revenue:   { $sum: { $multiply: ['$orderItems.price', '$orderItems.qty'] } }
+                    }},
+                    { $sort: { revenue: -1 } },
+                    { $limit: 5 },
+                    { $project: { name: '$_id', unitsSold: 1, revenue: 1, _id: 0 } }
+                ]);
+
+                const report = {
+                    month: monthLabel,
+                    totalOrders:   agg?.totalOrders   || 0,
+                    totalRevenue:  agg?.totalRevenue  || 0,
+                    onlineRevenue: agg?.onlineRevenue || 0,
+                    codRevenue:    agg?.codRevenue    || 0,
+                    topProducts
+                };
+
+                // Email all Admin users
+                const admins = await User.find({ role: 'Admin', status: 'Active' }).select('email name');
+                for (const admin of admins) {
+                    await sendMonthlyReportEmail(admin.email, report);
+                }
+                console.log(`📊 [CRON] Monthly report for ${monthLabel} sent to ${admins.length} admin(s).`);
+            } catch (e) {
+                console.error('[CRON] Monthly report error:', e.message);
+            }
+        });
+        console.log('📅 Cron: monthly report scheduled (runs at 09:00 on the 1st of each month).');
     } catch (e) {
         console.warn('⚠️  node-cron not available — install with: npm install node-cron');
     }

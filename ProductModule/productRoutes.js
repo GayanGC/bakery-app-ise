@@ -49,10 +49,20 @@ async function enforceDiscountExpiry() {
 }
 
 // GET – All products (public / any authenticated user)
+// Supports: ?search=<term>  and/or  ?category=<cat>  for real-time search
 router.get('/', async (req, res) => {
     try {
         await enforceDiscountExpiry();
-        const products = await Product.find({});
+        const { search, category } = req.query;
+        const query = {};
+        if (search && search.trim()) {
+            const regex = new RegExp(search.trim(), 'i');
+            query.$or = [{ name: regex }, { category: regex }, { description: regex }];
+        }
+        if (category && category.trim() && category !== 'All') {
+            query.category = new RegExp(`^${category.trim()}$`, 'i');
+        }
+        const products = await Product.find(query).sort({ createdAt: -1 });
         res.status(200).json(products);
     } catch (err) {
         res.status(500).json({ success: false, message: 'Server Error while fetching products' });

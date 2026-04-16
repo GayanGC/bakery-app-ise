@@ -10,7 +10,7 @@ const Payment = require('../FeedbackPaymentModule/Payment');
 const bcrypt = require('bcryptjs');
 const { protect } = require('../middleware/authMiddleware');
 const { checkRole } = require('../middleware/checkRole');
-const { sendOrderConfirmation } = require('../utils/mailer');
+const { sendOrderConfirmation, sendOrderDelivered, sendOrderCancelled } = require('../utils/mailer');
 
 // ── GET /analytics  –  Monthly stats + payment split (Admin/Manager) ──
 router.get('/analytics', protect, checkRole('Admin', 'Manager'), async (req, res) => {
@@ -92,8 +92,10 @@ router.post('/', protect, async (req, res) => {
             if (product.countInStock < item.qty) return res.status(400).json({ message: `Not enough stock for "${product.name}". Available: ${product.countInStock}` });
             product.countInStock -= item.qty;
             await product.save();
-            totalPrice += product.price * item.qty;
-            enrichedItems.push({ product: product._id, name: product.name, price: product.price, qty: item.qty });
+            // ── Use discounted price if product is on sale ───────────
+            const effectivePrice = (product.onSale && product.discountPrice) ? product.discountPrice : product.price;
+            totalPrice += effectivePrice * item.qty;
+            enrichedItems.push({ product: product._id, name: product.name, price: effectivePrice, qty: item.qty });
         }
         const method = paymentMethod === 'Online Payment' ? 'Online Payment' : 'Cash on Delivery';
         const order = new Order({ user: req.user._id, orderItems: enrichedItems, deliveryAddress, totalPrice, paymentMethod: method });
@@ -228,6 +230,10 @@ router.patch('/:id/deliver', protect, checkRole('Staff'), async (req, res) => {
             .populate('user', 'name email')
             .populate('assignedTo', 'name email');
         console.log(`✅ Order ${order._id} marked as Delivered by Staff ${req.user.email}`);
+        // ── Send delivery email (non-blocking) ────────────────────
+        sendOrderDelivered(populated.user.email, populated, populated.user.name).catch(e =>
+            console.warn('📧 Delivery email failed (non-fatal):', e.message)
+        );
         res.status(200).json({ message: 'Order marked as Delivered! ✅', order: populated });
     } catch (err) {
         res.status(500).json({ message: 'Server Error while marking delivery', detail: err.message });
@@ -260,6 +266,14 @@ router.patch('/:id/cancel', protect, async (req, res) => {
         order.status = 'Cancelled';
         order.cancelledAt = new Date();
         const updated = await order.save();
+
+        // ── Send cancellation email (non-blocking) ────────────────
+        const cancelledUser = await User.findById(order.user).select('name email');
+        if (cancelledUser) {
+            sendOrderCancelled(cancelledUser.email, updated, cancelledUser.name).catch(e =>
+                console.warn('📧 Cancellation email failed (non-fatal):', e.message)
+            );
+        }
 
         console.log(`🚫 Order ${order._id} cancelled by ${req.user.email} (within window)`);
         res.status(200).json({ success: true, message: 'Order cancelled successfully. Stock has been restored.', order: updated });

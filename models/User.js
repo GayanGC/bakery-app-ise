@@ -1,8 +1,6 @@
 // models/User.js
 // Canonical User schema — used by authMiddleware and all cross-module references.
-// Must stay in sync with UserModule/User.js
 const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
 
 const VALID_ROLES = ['Customer', 'Staff', 'Manager', 'Admin', 'InventorySeller', 'InventoryManager'];
 
@@ -61,14 +59,6 @@ const userSchema = new mongoose.Schema({
     avatar: { type: String, default: '' }
 
 }, { timestamps: true });
-
-// ── Hash password before saving ─────────────────────────────
-userSchema.pre('save', async function (next) {
-    if (!this.isModified('password')) return next();
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-});
 
 // Use existing compiled model to avoid OverwriteModelError
 module.exports = mongoose.models.User || mongoose.model('User', userSchema);

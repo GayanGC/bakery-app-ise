@@ -36,17 +36,8 @@ const userSchema = new mongoose.Schema({
 
     pin: {
         type: String,
-        default: '',
-        validate: [
-            {
-                validator: function (v) { return v === '' || /^\d+$/.test(v); },
-                message: 'PIN can only contain numbers'
-            },
-            {
-                validator: function (v) { return v === '' || /^\d{4}$/.test(v); },
-                message: 'PIN must be exactly 4 digits'
-            }
-        ]
+        default: ''
+        // Raw PIN is never stored — only bcrypt hash or empty string
     },
 
     role: {
@@ -70,13 +61,5 @@ const userSchema = new mongoose.Schema({
     avatar: { type: String, default: '' }              // e.g. /uploads/avatar-xxx.jpg
 
 }, { timestamps: true });
-
-// ── Hash password before saving ─────────────────────────────
-userSchema.pre('save', async function (next) {
-    if (!this.isModified('password')) return next();
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-});
 
 module.exports = mongoose.models.User || mongoose.model('User', userSchema);

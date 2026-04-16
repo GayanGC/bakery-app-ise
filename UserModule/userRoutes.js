@@ -4,12 +4,17 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const path = require('path');
+const fs = require('fs');
 const multer = require('multer');
 const router = express.Router();
 const User = require('./User');
 const { protect, isAdmin } = require('../middleware/authMiddleware');
 const { checkRole } = require('../middleware/checkRole');
 const { sendPasswordResetOtp } = require('../utils/mailer');
+
+// Ensure uploads directory exists
+const uploadDir = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 // ── Multer: avatar uploads ────────────────────────────────────────
 const avatarStorage = multer.diskStorage({
@@ -102,7 +107,8 @@ router.post('/register', async (req, res) => {
             const firstMsg = Object.values(err.errors)[0]?.message || 'Validation failed';
             return res.status(400).json({ success: false, message: firstMsg });
         }
-        res.status(500).json({ success: false, message: 'Server Error occurred' });
+        console.error('Registration Error:', err.message);
+        res.status(500).json({ success: false, message: err.message || 'Server Error occurred' });
     }
 });
 
@@ -325,8 +331,9 @@ router.post('/reset-password', async (req, res) => {
         const otpMatch = await bcrypt.compare(String(otp), user.resetOtp);
         if (!otpMatch) return res.status(401).json({ success: false, message: 'Incorrect OTP.' });
 
-        // Set new password (pre-save hook will hash it)
-        user.password = newPassword;
+        // Hash the new password with bcrypt before saving
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(newPassword, salt);
         user.resetOtp = null;
         user.resetOtpExpiry = null;
         await user.save();

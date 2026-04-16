@@ -5,7 +5,7 @@ import api from '../api/axios';
 import { useCart } from '../context/CartContext';
 
 function CheckoutPage() {
-    const { cartItems, cartTotal, clearCart } = useCart();
+    const { cartItems, cartTotal, clearCart, getEffectivePrice } = useCart();
     const navigate = useNavigate();
 
     const [form, setForm] = useState({ street: '', city: '', postalCode: '' });
@@ -173,20 +173,23 @@ function CheckoutPage() {
                             ) : (
                                 <>
                                     <div className="space-y-3 mb-4">
-                                        {cartItems.map(item => (
-                                            <div key={item._id} className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center text-sm shrink-0">
-                                                    🧁
+                                        {cartItems.map(item => {
+                                            const subtotal = getEffectivePrice(item) * item.cartQty;
+                                            return (
+                                                <div key={item._id} className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center text-sm shrink-0">
+                                                        🧁
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-semibold text-brand-800 truncate">{item.name}</p>
+                                                        <p className="text-xs text-slate-400">Qty: {item.cartQty}</p>
+                                                    </div>
+                                                    <span className="text-sm font-bold text-brand-700 shrink-0">
+                                                        Rs. {subtotal.toLocaleString()}
+                                                    </span>
                                                 </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-semibold text-brand-800 truncate">{item.name}</p>
-                                                    <p className="text-xs text-slate-400">Qty: {item.cartQty}</p>
-                                                </div>
-                                                <span className="text-sm font-bold text-brand-700 shrink-0">
-                                                    Rs. {(item.price * item.cartQty).toLocaleString()}
-                                                </span>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                     <div className="border-t border-brand-100 pt-4 flex justify-between font-extrabold text-brand-800 text-lg">
                                         <span>Total</span>

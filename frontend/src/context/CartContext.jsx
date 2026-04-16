@@ -55,10 +55,20 @@ export function CartProvider({ children }) {
     const updateQty = (id, qty) => dispatch({ type: 'UPDATE_QTY', payload: id, qty });
     const clearCart = () => dispatch({ type: 'CLEAR_CART' });
 
-    const cartTotal = state.cartItems.reduce((sum, i) => sum + i.price * i.cartQty, 0);
+    // ── Dynamic Pricing Logic ──────────────────────────────
+    const getEffectivePrice = (item) => (item.onSale && item.discountPrice) ? item.discountPrice : item.price;
+    const cartTotal = state.cartItems.reduce((sum, i) => sum + getEffectivePrice(i) * i.cartQty, 0);
 
     return (
-        <CartContext.Provider value={{ cartItems: state.cartItems, cartTotal, addToCart, removeFromCart, updateQty, clearCart }}>
+        <CartContext.Provider value={{ 
+            cartItems: state.cartItems, 
+            cartTotal, 
+            getEffectivePrice, 
+            addToCart, 
+            removeFromCart, 
+            updateQty, 
+            clearCart 
+        }}>
             {children}
         </CartContext.Provider>
     );

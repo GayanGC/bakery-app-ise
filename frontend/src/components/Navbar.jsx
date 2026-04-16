@@ -82,9 +82,20 @@ export default function Navbar() {
     const { cartItems } = useCart();
     const navigate = useNavigate();
     const [menuOpen, setMenuOpen] = useState(false);
+    const [pendingRequests, setPendingRequests] = useState(0);
 
     const cartCount = cartItems.reduce((s, i) => s + i.cartQty, 0);
     const links = user ? (roleLinks[user.role] || []) : [];
+
+    // ── Fetch pending stock requests for Inventory roles ─────────
+    useState(() => {
+        if (user && (user.role === 'InventoryManager' || user.role === 'InventorySeller')) {
+            api.get('/purchases').then(({ data }) => {
+                const pending = data.filter(r => r.status === 'Pending' || r.status === 'Sent').length;
+                setPendingRequests(pending);
+            }).catch(() => {});
+        }
+    }, [user]);
 
     const handleLogout = () => { logout(); navigate('/login'); setMenuOpen(false); };
 
@@ -129,13 +140,15 @@ export default function Navbar() {
                                     {link.label}
                                     {/* Cart item count badge */}
                                     {link.isCart && cartCount > 0 && (
-                                        <span className="absolute -top-1.5 -right-1.5 w-4 h-4 flex items-center justify-center bg-brand-400 text-brand-900 text-[10px] font-bold rounded-full">
+                                        <span className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 flex items-center justify-center bg-brand-400 text-brand-900 text-[9px] font-black rounded-full shadow-lg border border-brand-800">
                                             {cartCount}
                                         </span>
                                     )}
-                                    {/* Flashing stock-alert dot (InventoryManager) */}
-                                    {link.alert && (
-                                        <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-ping" />
+                                    {/* Pending stock requests badge (Inventory roles) */}
+                                    {(link.to === '/purchases' || link.alert) && pendingRequests > 0 && (
+                                        <span className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 flex items-center justify-center bg-rose-500 text-white text-[9px] font-black rounded-full shadow-lg shadow-rose-900/40 border border-rose-400/30 animate-pulse">
+                                            {pendingRequests}
+                                        </span>
                                     )}
                                 </NavItem>
                             ))}
