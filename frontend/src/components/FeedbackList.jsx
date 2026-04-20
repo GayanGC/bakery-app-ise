@@ -72,7 +72,7 @@ function ReviewCard({ fb, index, canDelete, onDelete }) {
 
                 <div className="flex-1 min-w-0">
                     <p className="font-extrabold text-slate-800 truncate leading-tight">{name}</p>
-                    <p className="text-xs text-slate-400 truncate">{user.email || ''}</p>
+                    {!fb.isAnonymous && <p className="text-xs text-slate-400 truncate">{user.email || ''}</p>}
                 </div>
 
                 <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${ROLE_BADGE[role] || 'bg-slate-100 text-slate-600'}`}>

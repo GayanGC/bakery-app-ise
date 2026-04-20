@@ -145,9 +145,9 @@ export default function Navbar() {
                                         </span>
                                     )}
                                     {/* Pending stock requests badge (Inventory roles) */}
-                                    {(link.to === '/purchases' || link.alert) && pendingRequests > 0 && (
+                                    {((link.to === '/purchases' || link.alert) && (pendingRequests > 0 || user.unreadNotifications)) && (
                                         <span className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 flex items-center justify-center bg-rose-500 text-white text-[9px] font-black rounded-full shadow-lg shadow-rose-900/40 border border-rose-400/30 animate-pulse">
-                                            {pendingRequests}
+                                            {pendingRequests || '!'}
                                         </span>
                                     )}
                                 </NavItem>

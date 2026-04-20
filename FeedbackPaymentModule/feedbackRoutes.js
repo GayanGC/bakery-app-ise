@@ -26,11 +26,13 @@ router.post('/', protect, async (req, res) => {
         if (existing) return res.status(400).json({ message: 'Feedback already submitted for this order.' });
         
         console.log('🔍 Creating new feedback document...');
+        const { isAnonymous } = req.body;
         const feedback = new Feedback({ 
             order: orderId, 
             user: req.user._id, 
             rating, 
-            comment: comment || '' 
+            comment: comment || '',
+            isAnonymous: !!isAnonymous
         });
         
         console.log('🔍 Saving feedback to database...');
@@ -59,8 +61,21 @@ router.get('/', protect, checkRole('Admin', 'Manager'), async (req, res) => {
         const feedbacks = await Feedback.find({})
             .populate('user', 'name email role')
             .populate('order', 'totalPrice createdAt')
-            .sort({ createdAt: -1 });
-        res.status(200).json(feedbacks);
+            .sort({ createdAt: -1 })
+            .lean();
+
+        // Anonymize if needed
+        const processed = feedbacks.map(fb => {
+            if (fb.isAnonymous) {
+                return {
+                    ...fb,
+                    user: { name: 'Anonymous Customer', role: 'Customer' }
+                };
+            }
+            return fb;
+        });
+
+        res.status(200).json(processed);
     } catch (err) {
         res.status(500).json({ message: 'Error fetching feedback' });
     }

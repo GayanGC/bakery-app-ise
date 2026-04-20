@@ -60,13 +60,28 @@ router.get('/analytics', protect, checkRole('Admin', 'Manager'), async (req, res
             });
         }
         const current = months[5]; const previous = months[4];
+
+        // ── Average Delivery Time (Admin/Manager) ──────────────────
+        let avgDeliveryMinutes = 0;
+        const deliveredOrders = await Order.find({ 
+            status: 'Delivered', 
+            dispatchedAt: { $ne: null }, 
+            deliveredAt: { $ne: null },
+            createdAt: { $gte: sixMonthsAgo } 
+        });
+        if (deliveredOrders.length > 0) {
+            const totalMs = deliveredOrders.reduce((acc, o) => acc + (o.deliveredAt - o.dispatchedAt), 0);
+            avgDeliveryMinutes = Math.round(totalMs / (1000 * 60 * deliveredOrders.length));
+        }
+
         res.status(200).json({
             months,
             summary: {
                 thisMonth: current,
                 lastMonth: previous,
                 ordersChange: current.orders - previous.orders,
-                revenueChange: current.revenue - previous.revenue
+                revenueChange: current.revenue - previous.revenue,
+                avgDeliveryMinutes
             },
             paymentSplit: paymentTotals || { totalOnlineRevenue: 0, totalCodRevenue: 0, totalOnlineOrders: 0, totalCodOrders: 0 }
         });
@@ -202,6 +217,15 @@ async function updateStatus(req, res) {
         order.status = status;
         if (deliveryPerson) order.deliveryPerson = deliveryPerson;
         if (assignedTo) order.assignedTo = assignedTo;
+
+        // ── Timestamp Logic ──────────────────────────────────────
+        if (status === 'Out for Delivery' && !order.dispatchedAt) {
+            order.dispatchedAt = new Date();
+        }
+        if (status === 'Delivered' && !order.deliveredAt) {
+            order.deliveredAt = new Date();
+        }
+
         const updated = await order.save();
         const populated = await Order.findById(updated._id).populate('assignedTo', 'name email');
         console.log(`📦 Order ${order._id} → "${status}"${assignedTo ? ` (assigned: ${assignedTo})` : ''}`);
@@ -225,6 +249,7 @@ router.patch('/:id/deliver', protect, checkRole('Staff'), async (req, res) => {
             return res.status(400).json({ message: 'Order is already delivered.' });
         }
         order.status = 'Delivered';
+        if (!order.deliveredAt) order.deliveredAt = new Date();
         const updated = await order.save();
         const populated = await Order.findById(updated._id)
             .populate('user', 'name email')
@@ -328,6 +353,63 @@ router.delete('/:id/override', protect, checkRole('Staff'), async (req, res) => 
     } catch (err) {
         console.error('Override Delete Error:', err);
         res.status(500).json({ success: false, message: 'Server Error while overriding order deletion.' });
+    }
+});
+
+// ── POST /api/orders/return/:id  –  Customer requests return ───
+router.post('/return/:id', protect, async (req, res) => {
+    try {
+        const order = await Order.findById(req.params.id);
+        if (!order) return res.status(404).json({ success: false, message: 'Order not found.' });
+
+        if (order.user.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ success: false, message: 'Not authorized.' });
+        }
+        if (order.status !== 'Delivered' || !order.deliveredAt) {
+            return res.status(400).json({ success: false, message: 'Only delivered orders can be returned.' });
+        }
+
+        // 24-hour window logic
+        const deliveredMs = new Date(order.deliveredAt).getTime();
+        const elapsedHrs = (Date.now() - deliveredMs) / (1000 * 60 * 60);
+        if (elapsedHrs > 24) {
+            return res.status(400).json({ success: false, message: 'Return window (24 hours) has expired.' });
+        }
+
+        order.status = 'Return Requested';
+        order.returnRequestedAt = new Date();
+        await order.save();
+
+        console.log(`↩️ Return requested for Order ${order._id} by ${req.user.email}`);
+        res.status(200).json({ success: true, message: 'Return requested. Admin will review it shortly.' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'Error processing return request.' });
+    }
+});
+
+// ── POST /api/orders/:id/accept-return  –  Admin accepts return ──
+router.post('/:id/accept-return', protect, checkRole('Admin'), async (req, res) => {
+    try {
+        const order = await Order.findById(req.params.id);
+        if (!order) return res.status(404).json({ success: false, message: 'Order not found.' });
+
+        if (order.status !== 'Return Requested') {
+            return res.status(400).json({ success: false, message: 'No return request found for this order.' });
+        }
+
+        // Restore stock
+        for (const item of order.orderItems) {
+            await Product.findByIdAndUpdate(item.product, { $inc: { countInStock: item.qty } });
+        }
+
+        order.status = 'Returned';
+        order.returnAcceptedAt = new Date();
+        await order.save();
+
+        console.log(`✅ Return accepted for Order ${order._id}. Stock restored.`);
+        res.status(200).json({ success: true, message: 'Return accepted and stock updated.' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'Error accepting return.' });
     }
 });
 

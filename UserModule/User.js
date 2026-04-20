@@ -58,7 +58,10 @@ const userSchema = new mongoose.Schema({
     resetOtpExpiry: { type: Date,   default: null },   // 15-min expiry
 
     // ── Profile Photo ────────────────────────────────────────
-    avatar: { type: String, default: '' }              // e.g. /uploads/avatar-xxx.jpg
+    avatar: { type: String, default: '' },              // e.g. /uploads/avatar-xxx.jpg
+
+    // ── Notifications pulse ──────────────────────────────────
+    unreadNotifications: { type: Boolean, default: false }
 
 }, { timestamps: true });
 

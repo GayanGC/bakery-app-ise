@@ -19,13 +19,21 @@ const orderSchema = new mongoose.Schema({
     totalPrice: { type: Number, required: true, default: 0 },
     status: {
         type: String,
-        enum: ['Placed', 'Processing', 'Out for Delivery', 'Delivered', 'Cancelled'],
+        enum: ['Placed', 'Processing', 'Out for Delivery', 'Delivered', 'Cancelled', 'Return Requested', 'Returned'],
         default: 'Placed'
     },
     deliveryPerson: { type: String, default: '' },
     assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     paymentMethod: { type: String, enum: ['Cash on Delivery', 'Online Payment'], default: 'Cash on Delivery' },
-    cancelledAt: { type: Date, default: null }
+    
+    // ── Timestamps for analytics and returns ──────────────────
+    dispatchedAt:  { type: Date, default: null },
+    deliveredAt:   { type: Date, default: null },
+    cancelledAt:   { type: Date, default: null },
+    
+    returnRequestedAt: { type: Date, default: null },
+    returnAcceptedAt:  { type: Date, default: null }
+
 }, { timestamps: true });
 
 module.exports = mongoose.models.Order || mongoose.model('Order', orderSchema);

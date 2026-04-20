@@ -18,6 +18,7 @@ export default function FeedbackPage() {
     const [rating,     setRating]     = useState(0);
     const [hover,      setHover]      = useState(0);
     const [comment,    setComment]    = useState('');
+    const [isAnonymous, setIsAnonymous] = useState(false);
 
     const [loading,    setLoading]    = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -34,11 +35,12 @@ export default function FeedbackPage() {
                     api.get(`/feedback/order/${orderId}`)
                 ]);
                 setOrder(orderRes.data);
-                if (fbRes.data.exists) {
-                    setExisting(fbRes.data.feedback);
-                    setRating(fbRes.data.feedback.rating);
-                    setComment(fbRes.data.feedback.comment);
-                }
+                    if (fbRes.data.exists) {
+                        setExisting(fbRes.data.feedback);
+                        setRating(fbRes.data.feedback.rating);
+                        setComment(fbRes.data.feedback.comment);
+                        setIsAnonymous(fbRes.data.feedback.isAnonymous || false);
+                    }
             } catch {
                 setError('Could not load order details.');
             } finally {
@@ -55,7 +57,7 @@ export default function FeedbackPage() {
         setSubmitting(true);
         setError('');
         try {
-            const { data } = await api.post('/feedback', { orderId, rating, comment });
+            const { data } = await api.post('/feedback', { orderId, rating, comment, isAnonymous });
             setExisting(data.feedback);
             setSuccess(true);
             setTimeout(() => setSuccess(false), 3000);
@@ -73,7 +75,7 @@ export default function FeedbackPage() {
         setSubmitting(true);
         setError('');
         try {
-            const { data } = await api.put(`/feedback/${existing._id}`, { rating, comment });
+            const { data } = await api.put(`/feedback/${existing._id}`, { rating, comment, isAnonymous });
             setExisting(data.feedback);
             setEditMode(false);
             setSuccess(true);
@@ -94,6 +96,7 @@ export default function FeedbackPage() {
             setExisting(null);
             setRating(0);
             setComment('');
+            setIsAnonymous(false);
             setEditMode(false);
             setShowDelConfirm(false);
         } catch (err) {
@@ -281,16 +284,35 @@ export default function FeedbackPage() {
                                             <p className="text-right text-xs text-slate-400 mt-1">{comment.length}/500</p>
                                         </div>
 
+                                        {/* Anonymity toggle */}
+                                        <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-brand-200 transition-all cursor-pointer"
+                                             onClick={() => setIsAnonymous(!isAnonymous)}>
+                                            <div className={`w-10 h-6 flex items-center rounded-full p-1 transition-all ${isAnonymous ? 'bg-brand-500' : 'bg-slate-300'}`}>
+                                                <div className={`bg-white w-4 h-4 rounded-full shadow-md transition-all ${isAnonymous ? 'translate-x-4' : 'translate-x-0'}`} />
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="text-sm font-bold text-slate-700">Submit Anonymously</p>
+                                                <p className="text-xs text-slate-400">Hide your name from the staff and public reviews.</p>
+                                            </div>
+                                            <div className="text-xl">{isAnonymous ? '🕵️' : '👤'}</div>
+                                        </div>
+
                                         {/* Action buttons */}
                                         <div className="flex gap-3">
                                             {editMode && (
                                                 <button
                                                     type="button"
-                                                    onClick={() => { setEditMode(false); setRating(existing.rating); setComment(existing.comment); setError(''); }}
-                                                    className="flex-1 py-2.5 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all"
-                                                >
-                                                    Cancel
-                                                </button>
+                                                    onClick={() => { 
+                                                    setEditMode(false); 
+                                                    setRating(existing.rating); 
+                                                    setComment(existing.comment); 
+                                                    setIsAnonymous(existing.isAnonymous || false);
+                                                    setError(''); 
+                                                }}
+                                                className="flex-1 py-2.5 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all"
+                                            >
+                                                Cancel
+                                            </button>
                                             )}
                                             <button
                                                 type="submit"

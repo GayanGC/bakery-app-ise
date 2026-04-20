@@ -24,6 +24,10 @@ const feedbackSchema = new mongoose.Schema({
         default: '', 
         maxlength: [500, 'Comment cannot exceed 500 characters'],
         trim: true
+    },
+    isAnonymous: { 
+        type: Boolean, 
+        default: false 
     }
 }, { 
     timestamps: true,

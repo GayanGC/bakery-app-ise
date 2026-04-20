@@ -24,100 +24,160 @@ transporter.verify(function (error, success) {
     }
 });
 
+// ── Shared Design Components ─────────────────────────────────────
+const baseStyles = `
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    color: #334155;
+    background-color: #f8fafc;
+    padding: 40px 20px;
+`;
+
+const containerStyles = `
+    max-width: 600px;
+    margin: 0 auto;
+    background: #ffffff;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    border: 1px solid #e2e8f0;
+`;
+
+const headerStyles = (color) => `
+    background-color: ${color};
+    padding: 32px;
+    text-align: center;
+`;
+
+const bodyStyles = `
+    padding: 32px;
+`;
+
+const footerStyles = `
+    padding: 24px 32px;
+    background-color: #f1f5f9;
+    text-align: center;
+    font-size: 12px;
+    color: #64748b;
+`;
+
 /**
  * Send an order confirmation email to the customer.
- * @param {string} toEmail
- * @param {{ _id, orderItems, totalPrice, deliveryAddress }} order
- * @param {string} customerName
  */
 async function sendOrderConfirmation(toEmail, order, customerName) {
-    if (!process.env.EMAIL_USER) return; // graceful no-op if not configured
+    if (!process.env.EMAIL_USER) return;
 
     const itemsHtml = order.orderItems.map(i =>
         `<tr>
-            <td style="padding:6px 12px;">${i.name}</td>
-            <td style="padding:6px 12px;text-align:center;">×${i.qty}</td>
-            <td style="padding:6px 12px;text-align:right;">Rs. ${(i.price * i.qty).toLocaleString()}</td>
+            <td style="padding:12px 0; border-bottom:1px solid #f1f5f9; font-size:14px;">
+                <div style="font-weight:600; color:#1e293b;">${i.name}</div>
+                <div style="font-size:12px; color:#64748b;">Qty: ${i.qty}</div>
+            </td>
+            <td style="padding:12px 0; border-bottom:1px solid #f1f5f9; text-align:right; font-weight:600; color:#1e293b; font-size:14px;">
+                Rs. ${(i.price * i.qty).toLocaleString()}
+            </td>
         </tr>`
     ).join('');
 
     const html = `
-    <div style="font-family:sans-serif;max-width:560px;margin:auto;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
-      <div style="background:#4B2C20;padding:24px 32px;">
-        <h1 style="color:#fff;margin:0;font-size:22px;">🍞 Sweet Delights Order Confirmed!</h1>
-      </div>
-      <div style="padding:24px 32px;">
-        <p style="color:#374151;">Hi <strong>${customerName}</strong>, your order has been placed successfully!</p>
-        <p style="color:#6b7280;font-size:13px;">Order ID: <code>#${String(order._id).slice(-8).toUpperCase()}</code></p>
-        <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;">
-          <thead>
-            <tr style="background:#fef3c7;">
-              <th style="padding:8px 12px;text-align:left;">Item</th>
-              <th style="padding:8px 12px;">Qty</th>
-              <th style="padding:8px 12px;text-align:right;">Subtotal</th>
-            </tr>
-          </thead>
-          <tbody>${itemsHtml}</tbody>
-          <tfoot>
-            <tr style="border-top:2px solid #e5e7eb;">
-              <td colspan="2" style="padding:8px 12px;font-weight:bold;">Total</td>
-              <td style="padding:8px 12px;text-align:right;font-weight:bold;color:#4B2C20;">Rs. ${order.totalPrice.toLocaleString()}</td>
-            </tr>
-          </tfoot>
-        </table>
-        <p style="color:#6b7280;font-size:13px;">
-          📍 Delivering to: ${order.deliveryAddress.street}, ${order.deliveryAddress.city} ${order.deliveryAddress.postalCode}
-        </p>
-        <p style="color:#9ca3af;font-size:12px;margin-top:24px;">Thank you for choosing us! You can track your order in the app.</p>
-      </div>
+    <div style="${baseStyles}">
+        <div style="${containerStyles}">
+            <div style="${headerStyles('#1e1b4b')}">
+                <h1 style="color:#ffffff; margin:0; font-size:24px; font-weight:800; letter-spacing:-0.025em;">Order Confirmed</h1>
+                <p style="color:#94a3b8; margin:8px 0 0; font-size:14px;">Thank you for your purchase!</p>
+            </div>
+            <div style="${bodyStyles}">
+                <p style="margin:0 0 24px;">Hi <strong>${customerName}</strong>,</p>
+                <p style="margin:0 0 24px; font-size:14px; color:#475569;">Your order <strong>#${String(order._id).slice(-8).toUpperCase()}</strong> has been successfully placed and is being processed.</p>
+                
+                <table style="width:100%; border-collapse:collapse; margin-bottom:24px;">
+                    <thead>
+                        <tr>
+                            <th style="text-align:left; font-size:12px; text-transform:uppercase; color:#94a3b8; padding-bottom:8px; border-bottom:2px solid #f1f5f9;">Item</th>
+                            <th style="text-align:right; font-size:12px; text-transform:uppercase; color:#94a3b8; padding-bottom:8px; border-bottom:2px solid #f1f5f9;">Price</th>
+                        </tr>
+                    </thead>
+                    <tbody>${itemsHtml}</tbody>
+                    <tfoot>
+                        <tr>
+                            <td style="padding:24px 0 8px; font-weight:700; color:#1e293b; font-size:16px;">Total Amount</td>
+                            <td style="padding:24px 0 8px; text-align:right; font-weight:800; color:#1e1b4b; font-size:18px;">Rs. ${order.totalPrice.toLocaleString()}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+
+                <div style="background:#f8fafc; border-radius:12px; padding:20px; border:1px solid #f1f5f9;">
+                    <div style="font-size:12px; font-weight:700; text-transform:uppercase; color:#94a3b8; margin-bottom:8px;">Delivery Details</div>
+                    <div style="font-size:14px; color:#475569;">
+                        ${order.deliveryAddress.street}<br/>
+                        ${order.deliveryAddress.city}, ${order.deliveryAddress.postalCode}
+                    </div>
+                </div>
+            </div>
+            <div style="${footerStyles}">
+                <p style="margin:0;">Sweet Delights Bakery &bull; Innovative Baking Systems</p>
+                <p style="margin:4px 0 0;">This is an automated receipt. No need to reply.</p>
+            </div>
+        </div>
     </div>`;
 
     try {
         await transporter.sendMail({
-            from: `"🍞 Sweet Delights" <${process.env.EMAIL_USER}>`,
+            from: `"Sweet Delights" <${process.env.EMAIL_USER}>`,
             to: toEmail,
             subject: `Order Confirmed – #${String(order._id).slice(-8).toUpperCase()}`,
             html,
         });
-        console.log(`📧 Order confirmation sent → ${toEmail}`);
     } catch (e) {
         console.log(`⚠️ Mailer failed for order confirmation:`, e.message);
     }
 }
 
 /**
- * Send a low-stock alert email to the inventory alert address.
- * @param {{ name, quantity, unit, lowStockThreshold, supplier }} material
+ * Send a low-stock alert email.
  */
 async function sendLowStockAlert(material) {
     const to = process.env.INVENTORY_ALERT_EMAIL;
-    if (!process.env.EMAIL_USER || !to) return; // graceful no-op
+    if (!process.env.EMAIL_USER || !to) return;
 
     const html = `
-    <div style="font-family:sans-serif;max-width:500px;margin:auto;border:1px solid #fca5a5;border-radius:12px;overflow:hidden;">
-      <div style="background:#dc2626;padding:20px 28px;">
-        <h1 style="color:#fff;margin:0;font-size:20px;">⚠️ Low Stock Alert</h1>
-      </div>
-      <div style="padding:20px 28px;">
-        <p style="color:#374151;">The following raw material has fallen below its threshold:</p>
-        <table style="width:100%;font-size:14px;border-collapse:collapse;">
-          <tr><td style="padding:6px;color:#6b7280;">Material</td><td style="padding:6px;font-weight:bold;">${material.name}</td></tr>
-          <tr><td style="padding:6px;color:#6b7280;">Current Stock</td><td style="padding:6px;color:#dc2626;font-weight:bold;">${material.quantity} ${material.unit}</td></tr>
-          <tr><td style="padding:6px;color:#6b7280;">Threshold</td><td style="padding:6px;">${material.lowStockThreshold} ${material.unit}</td></tr>
-          <tr><td style="padding:6px;color:#6b7280;">Supplier</td><td style="padding:6px;">${material.supplier || 'N/A'}</td></tr>
-        </table>
-        <p style="color:#9ca3af;font-size:12px;margin-top:20px;">Please raise a purchase request to replenish this material.</p>
-      </div>
+    <div style="${baseStyles}">
+        <div style="${containerStyles}">
+            <div style="${headerStyles('#e11d48')}">
+                <h1 style="color:#ffffff; margin:0; font-size:24px; font-weight:800; letter-spacing:-0.025em;">Low Stock Alert</h1>
+                <p style="color:#fecdd3; margin:8px 0 0; font-size:14px;">Inventory replenishment required</p>
+            </div>
+            <div style="${bodyStyles}">
+                <div style="text-align:center; margin-bottom:32px;">
+                    <div style="font-size:48px; margin-bottom:8px;">⚠️</div>
+                    <h2 style="margin:0; font-size:20px; color:#1e293b;">${material.name}</h2>
+                    <p style="font-size:14px; color:#ef4444; font-weight:700; margin:4px 0;">Currently ${material.quantity} ${material.unit} remaining</p>
+                </div>
+
+                <div style="border-top:1px solid #f1f5f9; padding-top:24px;">
+                    <table style="width:100%; border-collapse:collapse; font-size:14px;">
+                        <tr><td style="padding:8px 0; color:#64748b;">Threshold Level</td><td style="padding:8px 0; text-align:right; color:#1e293b; font-weight:600;">${material.lowStockThreshold} ${material.unit}</td></tr>
+                        <tr><td style="padding:8px 0; color:#64748b;">Supplier</td><td style="padding:8px 0; text-align:right; color:#1e293b; font-weight:600;">${material.supplier || 'Not Assigned'}</td></tr>
+                    </table>
+                </div>
+
+                <div style="margin-top:32px; text-align:center;">
+                    <p style="font-size:13px; color:#64748b; margin-bottom:20px;">Please initiate a purchase request via the inventory dashboard.</p>
+                </div>
+            </div>
+            <div style="${footerStyles}">
+                <p style="margin:0;">Sweet Delights Inventory System</p>
+            </div>
+        </div>
     </div>`;
 
     try {
         await transporter.sendMail({
-            from: `"🍞 Sweet Delights Inventory" <${process.env.EMAIL_USER}>`,
+            from: `"Sweet Delights Monitoring" <${process.env.EMAIL_USER}>`,
             to,
-            subject: `⚠️ Low Stock: ${material.name} (${material.quantity} ${material.unit} left)`,
+            subject: `⚠️ Low Stock: ${material.name}`,
             html,
         });
-        console.log(`📧 Low-stock alert sent for "${material.name}" → ${to}`);
     } catch (e) {
         console.log(`⚠️ Mailer failed for low-stock alert:`, e.message);
     }
@@ -125,34 +185,37 @@ async function sendLowStockAlert(material) {
 
 /**
  * Send a password-reset OTP email.
- * @param {string} toEmail
- * @param {string} name
- * @param {string} otp  plain-text 6-digit code
  */
 async function sendPasswordResetOtp(toEmail, name, otp) {
     if (!process.env.EMAIL_USER) return;
     const html = `
-    <div style="font-family:sans-serif;max-width:480px;margin:auto;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
-      <div style="background:#4B2C20;padding:20px 28px;">
-        <h1 style="color:#fff;margin:0;font-size:20px;">🔑 Password Reset</h1>
-      </div>
-      <div style="padding:24px 28px;">
-        <p style="color:#374151;">Hi <strong>${name}</strong>,</p>
-        <p style="color:#6b7280;">Use the OTP below to reset your password. It expires in <strong>15 minutes</strong>.</p>
-        <div style="margin:24px auto;text-align:center;background:#fef3c7;border-radius:12px;padding:20px 0;">
-          <span style="font-size:36px;font-weight:900;letter-spacing:10px;color:#4B2C20;">${otp}</span>
+    <div style="${baseStyles}">
+        <div style="${containerStyles}">
+            <div style="${headerStyles('#1e293b')}">
+                <h1 style="color:#ffffff; margin:0; font-size:24px; font-weight:800; letter-spacing:-0.025em;">Password Reset</h1>
+            </div>
+            <div style="${bodyStyles}">
+                <p style="margin:0 0 24px;">Hi <strong>${name}</strong>,</p>
+                <p style="margin:0 0 32px; font-size:14px; color:#475569;">We received a request to reset your password. Use the following verification code to proceed. This code will expire in 15 minutes.</p>
+                
+                <div style="background:#f8fafc; border-radius:16px; padding:32px; text-align:center; border:2px dashed #e2e8f0;">
+                    <div style="font-size:48px; font-weight:800; letter-spacing:12px; color:#1e1b4b; font-family:monospace;">${otp}</div>
+                </div>
+
+                <p style="margin:32px 0 0; font-size:12px; color:#94a3b8; text-align:center;">If you did not request this, you can safely ignore this email.</p>
+            </div>
+            <div style="${footerStyles}">
+                <p style="margin:0;">Sweet Delights Security Team</p>
+            </div>
         </div>
-        <p style="color:#9ca3af;font-size:12px;">If you did not request this, please ignore this email.</p>
-      </div>
     </div>`;
     try {
         await transporter.sendMail({
-            from: `"🍞 Sweet Delight" <${process.env.EMAIL_USER}>`,
+            from: `"Sweet Delights Accounts" <${process.env.EMAIL_USER}>`,
             to: toEmail,
-            subject: `Password Reset OTP: ${otp}`,
+            subject: `Security Verification Code: ${otp}`,
             html,
         });
-        console.log(`📧 Password reset OTP sent → ${toEmail}`);
     } catch (e) {
         console.log(`⚠️ Mailer failed for password reset:`, e.message);
     }
@@ -160,57 +223,40 @@ async function sendPasswordResetOtp(toEmail, name, otp) {
 
 /**
  * Send a delivery confirmation email to the customer.
- * @param {string} toEmail
- * @param {{ _id, orderItems, totalPrice, deliveryAddress }} order
- * @param {string} customerName
  */
 async function sendOrderDelivered(toEmail, order, customerName) {
     if (!process.env.EMAIL_USER) return;
 
-    const itemsHtml = order.orderItems.map(i =>
-        `<tr>
-            <td style="padding:6px 12px;">${i.name}</td>
-            <td style="padding:6px 12px;text-align:center;">×${i.qty}</td>
-            <td style="padding:6px 12px;text-align:right;">Rs. ${(i.price * i.qty).toLocaleString()}</td>
-        </tr>`
-    ).join('');
-
     const html = `
-    <div style="font-family:sans-serif;max-width:560px;margin:auto;border:1px solid #d1fae5;border-radius:12px;overflow:hidden;">
-      <div style="background:#065f46;padding:24px 32px;">
-        <h1 style="color:#fff;margin:0;font-size:22px;">🚀 Order Delivered!</h1>
-      </div>
-      <div style="padding:24px 32px;">
-        <p style="color:#374151;">Hi <strong>${customerName}</strong>, your order has been delivered successfully!</p>
-        <p style="color:#6b7280;font-size:13px;">Order ID: <code>#${String(order._id).slice(-8).toUpperCase()}</code></p>
-        <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;">
-          <thead>
-            <tr style="background:#d1fae5;">
-              <th style="padding:8px 12px;text-align:left;">Item</th>
-              <th style="padding:8px 12px;">Qty</th>
-              <th style="padding:8px 12px;text-align:right;">Subtotal</th>
-            </tr>
-          </thead>
-          <tbody>${itemsHtml}</tbody>
-          <tfoot>
-            <tr style="border-top:2px solid #e5e7eb;">
-              <td colspan="2" style="padding:8px 12px;font-weight:bold;">Total</td>
-              <td style="padding:8px 12px;text-align:right;font-weight:bold;color:#065f46;">Rs. ${order.totalPrice.toLocaleString()}</td>
-            </tr>
-          </tfoot>
-        </table>
-        <p style="color:#9ca3af;font-size:12px;margin-top:24px;">Thank you for choosing 🍞 Sweet Delights! We hope you enjoy your order.</p>
-      </div>
+    <div style="${baseStyles}">
+        <div style="${containerStyles}">
+            <div style="${headerStyles('#059669')}">
+                <h1 style="color:#ffffff; margin:0; font-size:24px; font-weight:800; letter-spacing:-0.025em;">Order Delivered</h1>
+                <p style="color:#a7f3d0; margin:8px 0 0; font-size:14px;">Success! Your treats have arrived.</p>
+            </div>
+            <div style="${bodyStyles}">
+                <div style="text-align:center; margin-bottom:32px;">
+                    <div style="font-size:48px; margin-bottom:16px;">✅</div>
+                    <p style="margin:0;">Hi <strong>${customerName}</strong>, your order <strong>#${String(order._id).slice(-8).toUpperCase()}</strong> has been successfully delivered. We hope you enjoy every bite!</p>
+                </div>
+
+                <div style="background:#f0fdf4; border-radius:12px; padding:24px; border:1px solid #dcfce7; text-align:center;">
+                    <p style="font-size:14px; color:#166534; margin:0;">Share your experience with us! Your feedback helps us improve.</p>
+                </div>
+            </div>
+            <div style="${footerStyles}">
+                <p style="margin:0;">Sweet Delights Bakery &bull; Enjoy your meal!</p>
+            </div>
+        </div>
     </div>`;
 
     try {
         await transporter.sendMail({
-            from: `"🍞 Sweet Delights" <${process.env.EMAIL_USER}>`,
+            from: `"Sweet Delights" <${process.env.EMAIL_USER}>`,
             to: toEmail,
-            subject: `Your Order Has Been Delivered – #${String(order._id).slice(-8).toUpperCase()}`,
+            subject: `Delivered: #${String(order._id).slice(-8).toUpperCase()}`,
             html,
         });
-        console.log(`📧 Delivery confirmation sent → ${toEmail}`);
     } catch (e) {
         console.log(`⚠️ Mailer failed for delivery confirmation:`, e.message);
     }
@@ -218,35 +264,38 @@ async function sendOrderDelivered(toEmail, order, customerName) {
 
 /**
  * Send an order cancellation email to the customer.
- * @param {string} toEmail
- * @param {{ _id, orderItems, totalPrice }} order
- * @param {string} customerName
  */
 async function sendOrderCancelled(toEmail, order, customerName) {
     if (!process.env.EMAIL_USER) return;
 
     const html = `
-    <div style="font-family:sans-serif;max-width:500px;margin:auto;border:1px solid #fca5a5;border-radius:12px;overflow:hidden;">
-      <div style="background:#7f1d1d;padding:20px 28px;">
-        <h1 style="color:#fff;margin:0;font-size:20px;">❌ Order Cancelled</h1>
-      </div>
-      <div style="padding:24px 28px;">
-        <p style="color:#374151;">Hi <strong>${customerName}</strong>,</p>
-        <p style="color:#6b7280;">Your order <code>#${String(order._id).slice(-8).toUpperCase()}</code> has been cancelled.</p>
-        <p style="color:#6b7280;">If you paid online, a refund will be processed within 3–5 business days.</p>
-        <p style="color:#6b7280;">Order total was: <strong>Rs. ${order.totalPrice.toLocaleString()}</strong></p>
-        <p style="color:#9ca3af;font-size:12px;margin-top:20px;">If you did not request this cancellation, please contact us immediately.</p>
-      </div>
+    <div style="${baseStyles}">
+        <div style="${containerStyles}">
+            <div style="${headerStyles('#475569')}">
+                <h1 style="color:#ffffff; margin:0; font-size:24px; font-weight:800; letter-spacing:-0.025em;">Order Cancelled</h1>
+            </div>
+            <div style="${bodyStyles}">
+                <p style="margin:0 0 16px;">Hi <strong>${customerName}</strong>,</p>
+                <p style="margin:0 0 16px; font-size:14px; color:#475569;">Your order <strong>#${String(order._id).slice(-8).toUpperCase()}</strong> has been cancelled.</p>
+                <p style="margin:0 0 16px; font-size:14px; color:#475569;">If you paid online, a refund will be automatically processed back to your original payment method within 3–5 business days.</p>
+                
+                <div style="border-top:1px solid #f1f5f9; margin-top:24px; padding-top:24px;">
+                    <p style="font-size:12px; color:#94a3b8;">If you believe this was an error, please contact our support team immediately.</p>
+                </div>
+            </div>
+            <div style="${footerStyles}">
+                <p style="margin:0;">Sweet Delights Support</p>
+            </div>
+        </div>
     </div>`;
 
     try {
         await transporter.sendMail({
-            from: `"🍞 Sweet Delights" <${process.env.EMAIL_USER}>`,
+            from: `"Sweet Delights Support" <${process.env.EMAIL_USER}>`,
             to: toEmail,
-            subject: `Order Cancelled – #${String(order._id).slice(-8).toUpperCase()}`,
+            subject: `Order Cancelled: #${String(order._id).slice(-8).toUpperCase()}`,
             html,
         });
-        console.log(`📧 Cancellation email sent → ${toEmail}`);
     } catch (e) {
         console.log(`⚠️ Mailer failed for order cancellation:`, e.message);
     }
@@ -254,39 +303,43 @@ async function sendOrderCancelled(toEmail, order, customerName) {
 
 /**
  * Notify the Inventory Seller(s) that a stock purchase request has been raised.
- * @param {string} toEmail  — seller's email
- * @param {{ _id, quantity, unit, notes }} request
- * @param {string} materialName
- * @param {string} managerName
  */
 async function sendStockRequestAlert(toEmail, request, materialName, managerName) {
     if (!process.env.EMAIL_USER) return;
 
     const html = `
-    <div style="font-family:sans-serif;max-width:500px;margin:auto;border:1px solid #fde68a;border-radius:12px;overflow:hidden;">
-      <div style="background:#92400e;padding:20px 28px;">
-        <h1 style="color:#fff;margin:0;font-size:20px;">📦 New Stock Request</h1>
-      </div>
-      <div style="padding:24px 28px;">
-        <p style="color:#374151;">The Inventory Manager <strong>${managerName}</strong> has requested stock replenishment:</p>
-        <table style="width:100%;font-size:14px;border-collapse:collapse;margin:12px 0;">
-          <tr><td style="padding:6px;color:#6b7280;">Material</td><td style="padding:6px;font-weight:bold;">${materialName}</td></tr>
-          <tr><td style="padding:6px;color:#6b7280;">Quantity Needed</td><td style="padding:6px;font-weight:bold;color:#92400e;">${request.quantity} ${request.unit}</td></tr>
-          <tr><td style="padding:6px;color:#6b7280;">Request ID</td><td style="padding:6px;"><code>#${String(request._id).slice(-8).toUpperCase()}</code></td></tr>
-          ${request.notes ? `<tr><td style="padding:6px;color:#6b7280;">Notes</td><td style="padding:6px;font-style:italic;">${request.notes}</td></tr>` : ''}
-        </table>
-        <p style="color:#9ca3af;font-size:12px;margin-top:20px;">Please log in to the Inventory Portal and mark this request as Sent once dispatched.</p>
-      </div>
+    <div style="${baseStyles}">
+        <div style="${containerStyles}">
+            <div style="${headerStyles('#1e1b4b')}">
+                <h1 style="color:#ffffff; margin:0; font-size:24px; font-weight:800; letter-spacing:-0.025em;">New Stock Request</h1>
+                <p style="color:#94a3b8; margin:8px 0 0; font-size:14px;">Action required from Inventory Seller</p>
+            </div>
+            <div style="${bodyStyles}">
+                <p style="margin:0 0 24px; font-size:14px;">Inventory Manager <strong>${managerName}</strong> has submitted a new replenishment request.</p>
+                
+                <div style="background:#f8fafc; border-radius:12px; padding:24px; border:1px solid #f1f5f9;">
+                    <table style="width:100%; border-collapse:collapse; font-size:14px;">
+                        <tr><td style="padding:8px 0; color:#64748b;">Material</td><td style="padding:8px 0; text-align:right; color:#1e293b; font-weight:600;">${materialName}</td></tr>
+                        <tr><td style="padding:8px 0; color:#64748b;">Quantity Needed</td><td style="padding:8px 0; text-align:right; color:#1e1b4b; font-weight:800;">${request.quantity} ${request.unit}</td></tr>
+                        <tr><td style="padding:8px 0; color:#64748b;">Request ID</td><td style="padding:8px 0; text-align:right; font-family:monospace; color:#1e293b;">#${String(request._id).slice(-8).toUpperCase()}</td></tr>
+                    </table>
+                </div>
+
+                ${request.notes ? `<div style="margin-top:24px; padding:16px; border-left:4px solid #1e1b4b; background:#f1f5f9; font-size:13px; font-style:italic;">"${request.notes}"</div>` : ''}
+            </div>
+            <div style="${footerStyles}">
+                <p style="margin:0;">Sweet Delights Inventory Portal</p>
+            </div>
+        </div>
     </div>`;
 
     try {
         await transporter.sendMail({
-            from: `"🍞 Sweet Delights Inventory" <${process.env.EMAIL_USER}>`,
+            from: `"Sweet Delights Logistics" <${process.env.EMAIL_USER}>`,
             to: toEmail,
-            subject: `📦 Stock Request: ${materialName} × ${request.quantity} ${request.unit}`,
+            subject: `Action Required: New Stock Request - ${materialName}`,
             html,
         });
-        console.log(`📧 Stock request alert sent → ${toEmail}`);
     } catch (e) {
         console.log(`⚠️ Mailer failed for stock request alert:`, e.message);
     }
@@ -294,39 +347,42 @@ async function sendStockRequestAlert(toEmail, request, materialName, managerName
 
 /**
  * Notify the Inventory Manager that the Seller has dispatched the requested items.
- * @param {string} toEmail  — manager's email
- * @param {{ _id, quantity, unit }} request
- * @param {string} materialName
- * @param {string} sellerName
  */
 async function sendStockDispatchedAlert(toEmail, request, materialName, sellerName) {
     if (!process.env.EMAIL_USER) return;
 
     const html = `
-    <div style="font-family:sans-serif;max-width:500px;margin:auto;border:1px solid #a7f3d0;border-radius:12px;overflow:hidden;">
-      <div style="background:#065f46;padding:20px 28px;">
-        <h1 style="color:#fff;margin:0;font-size:20px;">✅ Stock Dispatched!</h1>
-      </div>
-      <div style="padding:24px 28px;">
-        <p style="color:#374151;">The Inventory Seller <strong>${sellerName}</strong> has dispatched the following items:</p>
-        <table style="width:100%;font-size:14px;border-collapse:collapse;margin:12px 0;">
-          <tr><td style="padding:6px;color:#6b7280;">Material</td><td style="padding:6px;font-weight:bold;">${materialName}</td></tr>
-          <tr><td style="padding:6px;color:#6b7280;">Quantity Sent</td><td style="padding:6px;font-weight:bold;color:#065f46;">${request.quantity} ${request.unit}</td></tr>
-          <tr><td style="padding:6px;color:#6b7280;">Request ID</td><td style="padding:6px;"><code>#${String(request._id).slice(-8).toUpperCase()}</code></td></tr>
-        </table>
-        <p style="color:#6b7280;font-size:13px;">The stock level for <strong>${materialName}</strong> has been automatically updated in the system.</p>
-        <p style="color:#9ca3af;font-size:12px;margin-top:16px;">Check your Inventory Dashboard to verify the updated stock levels.</p>
-      </div>
+    <div style="${baseStyles}">
+        <div style="${containerStyles}">
+            <div style="${headerStyles('#059669')}">
+                <h1 style="color:#ffffff; margin:0; font-size:24px; font-weight:800; letter-spacing:-0.025em;">Stock Dispatched</h1>
+                <p style="color:#a7f3d0; margin:8px 0 0; font-size:14px;">Items are on their way</p>
+            </div>
+            <div style="${bodyStyles}">
+                <p style="margin:0 0 24px; font-size:14px;">Seller <strong>${sellerName}</strong> has dispatched your stock request.</p>
+                
+                <div style="background:#f0fdf4; border-radius:12px; padding:24px; border:1px solid #dcfce7;">
+                    <table style="width:100%; border-collapse:collapse; font-size:14px;">
+                        <tr><td style="padding:8px 0; color:#166534;">Material</td><td style="padding:8px 0; text-align:right; color:#166534; font-weight:600;">${materialName}</td></tr>
+                        <tr><td style="padding:8px 0; color:#166534;">Quantity Sent</td><td style="padding:8px 0; text-align:right; color:#166534; font-weight:800;">${request.quantity} ${request.unit}</td></tr>
+                    </table>
+                </div>
+
+                <p style="margin:24px 0 0; font-size:13px; color:#475569; text-align:center;">Stock levels have been updated in the system.</p>
+            </div>
+            <div style="${footerStyles}">
+                <p style="margin:0;">Sweet Delights Inventory Portal</p>
+            </div>
+        </div>
     </div>`;
 
     try {
         await transporter.sendMail({
-            from: `"🍞 Sweet Delights Inventory" <${process.env.EMAIL_USER}>`,
+            from: `"Sweet Delights Logistics" <${process.env.EMAIL_USER}>`,
             to: toEmail,
-            subject: `✅ Stock Dispatched: ${materialName} × ${request.quantity} ${request.unit}`,
+            subject: `Stock Dispatched: ${materialName}`,
             html,
         });
-        console.log(`📧 Stock dispatch alert sent → ${toEmail}`);
     } catch (e) {
         console.log(`⚠️ Mailer failed for stock dispatch alert:`, e.message);
     }
@@ -334,82 +390,76 @@ async function sendStockDispatchedAlert(toEmail, request, materialName, sellerNa
 
 /**
  * Send the monthly sales & revenue summary report to admin(s).
- * @param {string} toEmail
- * @param {{ month: string, totalOrders: number, totalRevenue: number, onlineRevenue: number, codRevenue: number, topProducts: Array }} report
  */
 async function sendMonthlyReportEmail(toEmail, report) {
     if (!process.env.EMAIL_USER) return;
 
     const topProductsHtml = (report.topProducts || []).slice(0, 5).map((p, i) =>
-        `<tr style="background:${i % 2 === 0 ? '#f9fafb' : '#fff'};">
-            <td style="padding:8px 12px;">${i + 1}. ${p.name}</td>
-            <td style="padding:8px 12px;text-align:center;">${p.unitsSold}</td>
-            <td style="padding:8px 12px;text-align:right;">Rs. ${p.revenue.toLocaleString()}</td>
+        `<tr>
+            <td style="padding:12px 16px; border-bottom:1px solid #f1f5f9; font-size:13px; color:#334155;">${i + 1}. ${p.name}</td>
+            <td style="padding:12px 16px; border-bottom:1px solid #f1f5f9; text-align:center; font-size:13px; color:#334155;">${p.unitsSold}</td>
+            <td style="padding:12px 16px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:13px; font-weight:600; color:#1e1b4b;">Rs. ${p.revenue.toLocaleString()}</td>
         </tr>`
     ).join('');
 
     const html = `
-    <div style="font-family:sans-serif;max-width:620px;margin:auto;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
-      <div style="background:linear-gradient(135deg,#4B2C20,#C8730A);padding:28px 36px;">
-        <h1 style="color:#fff;margin:0;font-size:24px;">📊 Monthly Report — ${report.month}</h1>
-        <p style="color:#fde68a;margin:4px 0 0;font-size:14px;">Sweet Delights Bakery Management System</p>
-      </div>
-      <div style="padding:28px 36px;">
-        <!-- KPI Grid -->
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;">
-          <div style="background:#fef3c7;border-radius:10px;padding:16px;text-align:center;">
-            <p style="margin:0;font-size:28px;font-weight:900;color:#92400e;">${report.totalOrders}</p>
-            <p style="margin:4px 0 0;font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:1px;">Total Orders</p>
-          </div>
-          <div style="background:#d1fae5;border-radius:10px;padding:16px;text-align:center;">
-            <p style="margin:0;font-size:24px;font-weight:900;color:#065f46;">Rs. ${Math.round(report.totalRevenue).toLocaleString()}</p>
-            <p style="margin:4px 0 0;font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:1px;">Total Revenue</p>
-          </div>
-          <div style="background:#ede9fe;border-radius:10px;padding:16px;text-align:center;">
-            <p style="margin:0;font-size:24px;font-weight:900;color:#5b21b6;">Rs. ${Math.round(report.onlineRevenue).toLocaleString()}</p>
-            <p style="margin:4px 0 0;font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:1px;">Online Revenue</p>
-          </div>
+    <div style="${baseStyles}">
+        <div style="${containerStyles}; max-width:680px;">
+            <div style="${headerStyles('linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)')}">
+                <h1 style="color:#ffffff; margin:0; font-size:24px; font-weight:800;">Monthly Sales Report</h1>
+                <p style="color:#94a3b8; margin:8px 0 0; font-size:14px; text-transform:uppercase; letter-spacing:1px;">${report.month}</p>
+            </div>
+            <div style="${bodyStyles}">
+                
+                <div style="display:flex; justify-content:space-between; margin-bottom:32px;">
+                    <div style="flex:1; background:#f8fafc; padding:20px; border-radius:12px; text-align:center; margin-right:12px; border:1px solid #f1f5f9;">
+                        <div style="font-size:11px; text-transform:uppercase; color:#64748b; margin-bottom:4px; font-weight:700;">Revenue</div>
+                        <div style="font-size:20px; font-weight:800; color:#1e1b4b;">Rs. ${Math.round(report.totalRevenue).toLocaleString()}</div>
+                    </div>
+                    <div style="flex:1; background:#f8fafc; padding:20px; border-radius:12px; text-align:center; margin-left:12px; border:1px solid #f1f5f9;">
+                        <div style="font-size:11px; text-transform:uppercase; color:#64748b; margin-bottom:4px; font-weight:700;">Orders</div>
+                        <div style="font-size:20px; font-weight:800; color:#1e1b4b;">${report.totalOrders}</div>
+                    </div>
+                </div>
+
+                <div style="margin-bottom:32px;">
+                    <h3 style="font-size:13px; text-transform:uppercase; color:#94a3b8; margin-bottom:12px; letter-spacing:1px;">Payment Method Distribution</h3>
+                    <div style="display:flex; border-radius:8px; overflow:hidden; height:8px; margin-bottom:12px;">
+                        <div style="width:${(report.onlineRevenue/report.totalRevenue)*100}%; background:#1e1b4b;"></div>
+                        <div style="flex:1; background:#94a3b8;"></div>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; font-size:12px;">
+                        <span style="color:#1e1b4b; font-weight:600;">Online: Rs. ${Math.round(report.onlineRevenue).toLocaleString()}</span>
+                        <span style="color:#64748b;">COD: Rs. ${Math.round(report.codRevenue).toLocaleString()}</span>
+                    </div>
+                </div>
+
+                ${topProductsHtml ? `
+                <h3 style="font-size:13px; text-transform:uppercase; color:#94a3b8; margin-bottom:12px; letter-spacing:1px;">Top Performance Products</h3>
+                <table style="width:100%; border-collapse:collapse; background:#ffffff; border-radius:12px; overflow:hidden; border:1px solid #f1f5f9;">
+                    <thead style="background:#f8fafc;">
+                        <tr>
+                            <th style="padding:12px 16px; text-align:left; font-size:11px; color:#64748b;">PRODUCT</th>
+                            <th style="padding:12px 16px; font-size:11px; color:#64748b;">UNITS</th>
+                            <th style="padding:12px 16px; text-align:right; font-size:11px; color:#64748b;">REVENUE</th>
+                        </tr>
+                    </thead>
+                    <tbody>${topProductsHtml}</tbody>
+                </table>` : ''}
+            </div>
+            <div style="${footerStyles}">
+                <p style="margin:0;">Sweet Delights Analytics &bull; Confidence in every data point</p>
+            </div>
         </div>
-        <!-- Payment Split -->
-        <div style="background:#f9fafb;border-radius:10px;padding:16px;margin-bottom:24px;">
-          <h3 style="margin:0 0 12px;font-size:15px;color:#374151;">💳 Payment Split</h3>
-          <div style="display:flex;justify-content:space-between;font-size:14px;">
-            <span style="color:#6b7280;">Cash on Delivery</span>
-            <strong style="color:#374151;">Rs. ${Math.round(report.codRevenue).toLocaleString()}</strong>
-          </div>
-          <div style="display:flex;justify-content:space-between;font-size:14px;margin-top:6px;">
-            <span style="color:#6b7280;">Online Payment</span>
-            <strong style="color:#374151;">Rs. ${Math.round(report.onlineRevenue).toLocaleString()}</strong>
-          </div>
-        </div>
-        ${topProductsHtml ? `
-        <!-- Top Products -->
-        <h3 style="margin:0 0 12px;font-size:15px;color:#374151;">🏆 Top Products This Month</h3>
-        <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px;">
-          <thead>
-            <tr style="background:#4B2C20;color:#fff;">
-              <th style="padding:8px 12px;text-align:left;">Product</th>
-              <th style="padding:8px 12px;">Units Sold</th>
-              <th style="padding:8px 12px;text-align:right;">Revenue</th>
-            </tr>
-          </thead>
-          <tbody>${topProductsHtml}</tbody>
-        </table>` : ''}
-        <p style="color:#9ca3af;font-size:12px;margin-top:24px;border-top:1px solid #e5e7eb;padding-top:16px;">
-          This is an automated monthly report generated by Sweet Delights Bakery Management System.<br/>
-          Generated on: ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-        </p>
-      </div>
     </div>`;
 
     try {
         await transporter.sendMail({
-            from: `"🍞 Sweet Delights Reports" <${process.env.EMAIL_USER}>`,
+            from: `"Sweet Delights Analytics" <${process.env.EMAIL_USER}>`,
             to: toEmail,
-            subject: `📊 Monthly Sales Report — ${report.month}`,
+            subject: `📊 Report: Monthly Sales Summary - ${report.month}`,
             html,
         });
-        console.log(`📧 Monthly report sent → ${toEmail}`);
     } catch (e) {
         console.log(`⚠️ Mailer failed for monthly report:`, e.message);
     }

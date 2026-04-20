@@ -97,12 +97,16 @@ router.put('/:id/status', protect, checkRole('InventorySeller', 'Admin'), async 
             await PurchaseRequest.findByIdAndDelete(request._id);
 
             // ── Notify all InventoryManagers (non-blocking) ──────────
-            User.find({ role: 'InventoryManager', status: 'Active' }).select('email name').then(managers => {
-                managers.forEach(mgr =>
+            User.find({ role: 'InventoryManager', status: 'Active' }).then(managers => {
+                managers.forEach(mgr => {
+                    // Update flags for email & pulse
+                    mgr.unreadNotifications = true;
+                    mgr.save().catch(() => {});
+
                     sendStockDispatchedAlert(mgr.email, request, materialName, req.user.name).catch(e =>
                         console.warn('📧 Stock dispatch alert failed (non-fatal):', e.message)
-                    )
-                );
+                    );
+                });
             }).catch(() => {});
 
             console.log(`💮 Purchase ${request._id} → Sent + stock updated (by ${req.user.email})`);
