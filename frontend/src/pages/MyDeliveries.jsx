@@ -1,6 +1,6 @@
-// frontend/src/pages/StaffDeliveryPortal.jsx
+// frontend/src/pages/MyDeliveries.jsx
 // Staff-only portal: shows ONLY orders assigned to the logged-in staff member.
-// Provides "Mark as Delivered" button for completion workflow.
+// Provides stage-update workflow and live status monitoring.
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
@@ -48,9 +48,10 @@ function OrderStepper({ status }) {
     );
 }
 
-export default function StaffDeliveryPortal() {
+export default function MyDeliveries() {
     const { user } = useAuth();
-    const [orders, setOrders] = useState([]);
+    const [activeOrders, setActiveOrders] = useState([]);
+    const [deliveredOrders, setDeliveredOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [actionLoading, setActionLoading] = useState(null); // orderId being acted on
@@ -61,8 +62,9 @@ export default function StaffDeliveryPortal() {
         setLoading(true);
         setError('');
         try {
-            const { data } = await api.get('/orders/my-assignments');
-            setOrders(data);
+            const { data } = await api.get('/orders/staff-deliveries');
+            setActiveOrders(data.active || []);
+            setDeliveredOrders(data.delivered || []);
         } catch (e) {
             setError(e.response?.data?.message || 'Failed to load your assignments.');
         } finally {
@@ -83,14 +85,14 @@ export default function StaffDeliveryPortal() {
         if (toast) { const t = setTimeout(() => setToast(''), 4000); return () => clearTimeout(t); }
     }, [toast]);
 
-    const handleMarkDelivered = async (orderId) => {
+    const handleUpdateStatus = async (orderId, newStatus) => {
         setActionLoading(orderId);
         try {
-            await api.patch(`/orders/${orderId}/deliver`);
-            setToast('Order marked as Delivered! ✅');
+            await api.put(`/orders/update-status/${orderId}`, { status: newStatus });
+            setToast(`Order marked as ${newStatus}! ✅`);
             fetchAssignments();
         } catch (e) {
-            alert(e.response?.data?.message || 'Failed to mark as delivered.');
+            alert(e.response?.data?.message || `Failed to update status to ${newStatus}.`);
         } finally {
             setActionLoading(null);
         }
@@ -101,8 +103,6 @@ export default function StaffDeliveryPortal() {
         hour: '2-digit', minute: '2-digit'
     });
 
-    const activeOrders = orders.filter(o => o.status !== 'Delivered');
-    const deliveredOrders = orders.filter(o => o.status === 'Delivered');
     const display = showDelivered ? deliveredOrders : activeOrders;
 
     return (
@@ -124,9 +124,14 @@ export default function StaffDeliveryPortal() {
                             style={{ fontFamily: '"Playfair Display", serif' }}>
                             🛵 My Deliveries
                         </h2>
-                        <p className="text-sm text-slate-500 mt-1">
-                            Hi {user?.name}! These orders are assigned to you.
-                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                            <p className="text-sm text-slate-500">
+                                Hi {user?.name}! These orders are assigned to you.
+                            </p>
+                            <span className="animate-pulse bg-emerald-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-lg shadow-emerald-200">
+                                LIVE DELIVERY STATUS
+                            </span>
+                        </div>
                     </div>
                     <div className="flex items-center gap-3">
                         {/* Toggle: Active / Delivered */}
@@ -221,13 +226,21 @@ export default function StaffDeliveryPortal() {
                                     </p>
                                 )}
 
-                                {/* Mark as Delivered — only for non-delivered orders */}
+                                {/* Update Status Buttons */}
                                 {order.status !== 'Delivered' && (
-                                    <div className="mt-4 pt-4 border-t border-brand-50">
+                                    <div className="mt-4 pt-4 border-t border-brand-50 flex gap-3">
+                                        {order.status === 'Processing' && (
+                                            <button
+                                                onClick={() => handleUpdateStatus(order._id, 'Out for Delivery')}
+                                                disabled={actionLoading === order._id}
+                                                className="flex items-center gap-2 px-5 py-2.5 bg-blue-500 text-white text-sm font-bold rounded-xl shadow-md hover:bg-blue-600 active:scale-95 disabled:opacity-50 transition-all">
+                                                🛵 Out for Delivery
+                                            </button>
+                                        )}
                                         <button
-                                            onClick={() => handleMarkDelivered(order._id)}
+                                            onClick={() => handleUpdateStatus(order._id, 'Delivered')}
                                             disabled={actionLoading === order._id}
-                                            className="flex items-center gap-2 px-5 py-2.5 bg-green-500 text-white text-sm font-bold rounded-xl shadow-md hover:bg-green-600 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200">
+                                            className="flex items-center gap-2 px-5 py-2.5 bg-green-500 text-white text-sm font-bold rounded-xl shadow-md hover:bg-green-600 active:scale-95 disabled:opacity-50 transition-all">
                                             {actionLoading === order._id ? (
                                                 <>
                                                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

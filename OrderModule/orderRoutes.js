@@ -201,6 +201,23 @@ router.get('/:id', protect, async (req, res) => {
     }
 });
 
+// ── GET /staff-deliveries  –  Staff: returns orders grouped by status ──
+router.get('/staff-deliveries', protect, checkRole('Staff'), async (req, res) => {
+    try {
+        const orders = await Order.find({ assignedTo: req.user._id })
+            .populate('user', 'name email')
+            .sort({ createdAt: -1 });
+
+        const active = orders.filter(o => ['Processing', 'Out for Delivery'].includes(o.status));
+        const delivered = orders.filter(o => o.status === 'Delivered');
+
+        res.status(200).json({ active, delivered });
+    } catch (err) {
+        console.error('❌ Error in GET /staff-deliveries:', err);
+        res.status(500).json({ message: 'Error fetching staff deliveries', detail: err.message });
+    }
+});
+
 // ── PATCH /api/orders/:id/status  –  4-stage workflow ──────────
 const statusFlow = ['Placed', 'Processing', 'Out for Delivery', 'Delivered'];
 async function updateStatus(req, res) {
@@ -209,6 +226,12 @@ async function updateStatus(req, res) {
         if (!statusFlow.includes(status)) return res.status(400).json({ message: `Invalid status. Allowed: ${statusFlow.join(' → ')}` });
         const order = await Order.findById(req.params.id);
         if (!order) return res.status(404).json({ message: 'Order not found' });
+        
+        // Authorization check for non-Admin/Manager roles
+        if (req.user.role === 'Staff' && order.assignedTo?.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ message: 'This order is not assigned to you.' });
+        }
+
         if (req.user.role === 'Staff') {
             const currentIdx = statusFlow.indexOf(order.status);
             const nextIdx = statusFlow.indexOf(status);
@@ -227,7 +250,10 @@ async function updateStatus(req, res) {
         }
 
         const updated = await order.save();
-        const populated = await Order.findById(updated._id).populate('assignedTo', 'name email');
+        const populated = await Order.findById(updated._id)
+            .populate('user', 'name email')
+            .populate('assignedTo', 'name email');
+        
         console.log(`📦 Order ${order._id} → "${status}"${assignedTo ? ` (assigned: ${assignedTo})` : ''}`);
         return res.status(200).json({ message: `Order status updated to "${status}" ✅`, order: populated });
     } catch (err) {
@@ -236,6 +262,7 @@ async function updateStatus(req, res) {
 }
 router.put('/:id/status', protect, checkRole('Admin', 'Staff', 'Manager'), updateStatus);
 router.patch('/:id/status', protect, checkRole('Admin', 'Staff', 'Manager'), updateStatus);
+router.put('/update-status/:id', protect, checkRole('Admin', 'Staff', 'Manager'), updateStatus);
 
 // ── PATCH /:id/deliver  –  Staff marks their assigned order as Delivered ──
 router.patch('/:id/deliver', protect, checkRole('Staff'), async (req, res) => {

@@ -16,7 +16,7 @@ import PurchaseRequestsPage from './pages/PurchaseRequestsPage';
 import FeedbackPage from './pages/FeedbackPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ProfilePage from './pages/ProfilePage';
-import StaffDeliveryPortal from './pages/StaffDeliveryPortal';
+import MyDeliveries from './pages/MyDeliveries';
 import PaymentPage from './pages/PaymentPage';
 
 // Pages that should NOT show the Navbar
@@ -54,7 +54,7 @@ function App() {
           <Route path="/orders" element={<OrderHistoryPage />} />
 
           {/* ── Staff Delivery Portal ───────────────────── */}
-          <Route path="/staff-portal" element={<StaffDeliveryPortal />} />
+          <Route path="/my-deliveries" element={<MyDeliveries />} />
 
           {/* ── Virtual Payment Gateway ───────────────── */}
           <Route path="/payment" element={<PaymentPage />} />

@@ -6,6 +6,7 @@ import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import ProductImage from '../components/ProductImage';
+import api from '../api/axios';
 
 // ── Role badge colours ──────────────────────────────────────────
 const roleBadge = {
@@ -30,7 +31,7 @@ const roleLinks = {
         { to: '/shop', label: '🛒 Shop' },
         { to: '/cart', label: '🧺 Cart', isCart: true },
         { to: '/orders', label: '📋 Order Management' },
-        { to: '/staff-portal', label: '🛵 My Deliveries' }
+        { to: '/my-deliveries', label: '🛵 My Deliveries' }
     ],
     Manager: [
         { to: '/shop', label: '🛒 Shop' },
@@ -93,7 +94,7 @@ export default function Navbar() {
             api.get('/purchases').then(({ data }) => {
                 const pending = data.filter(r => r.status === 'Pending' || r.status === 'Sent').length;
                 setPendingRequests(pending);
-            }).catch(() => {});
+            }).catch(() => { });
         }
     }, [user]);
 
@@ -170,8 +171,8 @@ export default function Navbar() {
                                         </span>
                                     </div>
                                     <div className="w-8 h-8 rounded-full border-2 border-brand-600 shadow-sm overflow-hidden bg-brand-700">
-                                        <ProductImage 
-                                            src={user.avatar} 
+                                        <ProductImage
+                                            src={user.avatar}
                                             alt={user.name}
                                             fallbackText={user.name[0].toUpperCase()}
                                             className="w-full h-full object-cover text-white flex items-center justify-center font-bold text-xs"
@@ -206,8 +207,8 @@ export default function Navbar() {
                         {user && (
                             <div className="flex items-center gap-3 py-2 mb-2 border-b border-brand-700">
                                 <div className="w-10 h-10 rounded-full border-2 border-brand-600 bg-brand-700 flex items-center justify-center overflow-hidden">
-                                    <ProductImage 
-                                        src={user.avatar} 
+                                    <ProductImage
+                                        src={user.avatar}
                                         alt={user.name}
                                         fallbackText={user.name[0]?.toUpperCase()}
                                         className="w-full h-full object-cover text-sm font-extrabold text-white flex items-center justify-center"
