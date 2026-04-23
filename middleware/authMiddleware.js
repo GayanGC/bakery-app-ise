@@ -18,17 +18,21 @@ const protect = async (req, res, next) => {
             // (.select('-password') means we exclude the password from the result)
             req.user = await User.findById(decoded.id).select('-password');
 
-            next(); // If everything is okay, move to the next route handler
+            if (!req.user) {
+                return res.status(401).json({ message: "User not found for this token." });
+            }
+
+            return next(); // If everything is okay, move to the next route handler
 
         } catch (error) {
-            console.error("Token Error:", error);
-            res.status(401).json({ message: "Not authorized, token failed!" });
+            console.error("Token Error:", error.message);
+            return res.status(401).json({ message: "Not authorized, token failed!" });
         }
     }
 
     // If no token is found in the headers
     if (!token) {
-        res.status(401).json({ message: "Not authorized, no token!" });
+        return res.status(401).json({ message: "Not authorized, no token!" });
     }
 };
 

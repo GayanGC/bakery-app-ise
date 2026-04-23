@@ -27,8 +27,9 @@ const orderSchema = new mongoose.Schema({
     paymentMethod: { type: String, enum: ['Cash on Delivery', 'Online Payment'], default: 'Cash on Delivery' },
     
     // ── Timestamps for analytics and returns ──────────────────
-    dispatchedAt:  { type: Date, default: null },
-    deliveredAt:   { type: Date, default: null },
+    outForDeliveryAt: { type: Date, default: null },
+    deliveredAt:      { type: Date, default: null },
+    deliveryTime:     { type: Number, default: null }, // in minutes
     cancelledAt:   { type: Date, default: null },
     
     returnRequestedAt: { type: Date, default: null },

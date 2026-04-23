@@ -16,7 +16,8 @@ const stageIcons = {
     'Placed': '🧾',
     'Processing': '🥐',
     'Out for Delivery': '🛵',
-    'Delivered': '✅'
+    'Delivered': '✅',
+    'Cancelled': '🚫'
 };
 
 function OrderStepper({ status }) {
@@ -58,7 +59,8 @@ const badgeStyle = {
     'Placed': 'bg-slate-100   text-slate-600',
     'Processing': 'bg-amber-100   text-amber-700',
     'Out for Delivery': 'bg-blue-100    text-blue-700',
-    'Delivered': 'bg-green-100   text-green-700'
+    'Delivered': 'bg-green-100   text-green-700',
+    'Cancelled': 'bg-red-100 text-red-700'
 };
 
 // ── Main component ──────────────────────────────────────────────────────────
@@ -135,10 +137,11 @@ export default function OrderHistoryPage() {
                 // Manager/Admin uses their own PIN
                 await api.delete(`/orders/${pinTarget}`, { data: { pin } });
             }
-            setOrders(orders.filter(o => o._id !== pinTarget));
+            // Update UI to show as Cancelled instead of deleting
+            setOrders(orders.map(o => o._id === pinTarget ? { ...o, status: 'Cancelled' } : o));
             setPinTarget(null);
         } catch (e) {
-            setPinError(e.response?.data?.message || 'Failed to authorize or delete order.');
+            setPinError(e.response?.data?.message || 'Failed to authorize or cancel order.');
             setPinLoading(false);
         }
     };
@@ -263,7 +266,7 @@ export default function OrderHistoryPage() {
                                 </div>
 
                                 {/* 4-Step Progress Stepper (Customer view) */}
-                                {!isStaff && <OrderStepper status={order.status} />}
+                                {!isStaff && order.status !== 'Cancelled' && <OrderStepper status={order.status} />}
 
                                 {/* Order items */}
                                 <div className="mt-4 flex flex-wrap gap-2">
@@ -315,7 +318,7 @@ export default function OrderHistoryPage() {
                                     <div className="mt-4 pt-4 border-t border-brand-50 space-y-3">
 
                                         {/* 4-step stepper for Staff so they see current position */}
-                                        <OrderStepper status={order.status} />
+                                        {order.status !== 'Cancelled' && <OrderStepper status={order.status} />}
 
                                         <div className="flex flex-wrap items-center gap-3">
 
@@ -334,7 +337,7 @@ export default function OrderHistoryPage() {
                                             )}
 
                                             {/* Advance to next stage button */}
-                                            {nextStatus(order.status) && (
+                                            {nextStatus(order.status) && order.status !== 'Cancelled' && (
                                                 <button
                                                     onClick={() => handleStatusChange(order._id, nextStatus(order.status))}
                                                     className="text-xs font-bold px-4 py-1.5 bg-brand-500 text-white rounded-lg hover:bg-brand-600 active:scale-95 transition-all">
@@ -342,22 +345,23 @@ export default function OrderHistoryPage() {
                                                 </button>
                                             )}
 
-                                            {/* Admin/Manager: full status dropdown */}
-                                            {hasRole('Admin', 'Manager') && (
+                                            {/* Admin/Manager: forward-only status dropdown */}
+                                            {hasRole('Admin', 'Manager') && !['Delivered', 'Cancelled'].includes(order.status) && (
                                                 <select
                                                     value={order.status}
                                                     onChange={e => handleStatusChange(order._id, e.target.value)}
                                                     className="text-xs font-bold px-2 py-1.5 bg-brand-50 border border-brand-200 rounded-lg focus:ring-2 focus:ring-brand-400 focus:outline-none ml-auto">
-                                                    {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+                                                    <option value={order.status} disabled>{order.status} (current)</option>
+                                                    {STAGES.slice(STAGES.indexOf(order.status) + 1).map(s => <option key={s} value={s}>{s}</option>)}
                                                 </select>
                                             )}
 
-                                            {/* Delete (Manager/Admin + PIN, or Staff Override) */}
-                                            {isStaff && (
+                                            {/* Cancel/Override (Manager/Admin + PIN, or Staff Override) */}
+                                            {isStaff && !['Delivered', 'Cancelled'].includes(order.status) && (
                                                 <button
                                                     onClick={() => { setPinTarget(order._id); setPinError(''); }}
-                                                    className="text-xs font-semibold text-red-500 hover:text-red-700 transition-colors">
-                                                    🗑 Delete
+                                                    className="text-xs font-semibold text-red-500 hover:text-red-700 transition-colors ml-auto">
+                                                    🚫 Cancel Order
                                                 </button>
                                             )}
                                         </div>
@@ -371,10 +375,10 @@ export default function OrderHistoryPage() {
 
             {pinTarget && (
                 <PINVerificationModal
-                    title={hasRole('Manager', 'Admin') ? "🔒 Confirm Deletion" : "👑 Manager Override"}
+                    title={hasRole('Manager', 'Admin') ? "🔒 Confirm Cancellation" : "👑 Manager Override"}
                     subtitle={hasRole('Manager', 'Admin') 
-                        ? "Enter your 4-digit PIN to delete this order."
-                        : "Enter a Manager's 4-digit PIN to authorize deletion."}
+                        ? "Enter your 4-digit PIN to cancel this order."
+                        : "Enter a Manager's 4-digit PIN to authorize cancellation."}
                     loading={pinLoading}
                     error={pinError}
                     onConfirm={handleDeleteConfirm}

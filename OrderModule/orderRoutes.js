@@ -10,7 +10,7 @@ const Payment = require('../FeedbackPaymentModule/Payment');
 const bcrypt = require('bcryptjs');
 const { protect } = require('../middleware/authMiddleware');
 const { checkRole } = require('../middleware/checkRole');
-const { sendOrderConfirmation, sendOrderDelivered, sendOrderCancelled } = require('../utils/mailer');
+const { sendOrderConfirmation, sendOrderDelivered, sendOrderCancelled, sendRefundInitiated } = require('../utils/mailer');
 
 // ── GET /analytics  –  Monthly stats + payment split (Admin/Manager) ──
 router.get('/analytics', protect, checkRole('Admin', 'Manager'), async (req, res) => {
@@ -65,13 +65,17 @@ router.get('/analytics', protect, checkRole('Admin', 'Manager'), async (req, res
         let avgDeliveryMinutes = 0;
         const deliveredOrders = await Order.find({ 
             status: 'Delivered', 
-            dispatchedAt: { $ne: null }, 
+            outForDeliveryAt: { $ne: null }, 
             deliveredAt: { $ne: null },
             createdAt: { $gte: sixMonthsAgo } 
         });
         if (deliveredOrders.length > 0) {
-            const totalMs = deliveredOrders.reduce((acc, o) => acc + (o.deliveredAt - o.dispatchedAt), 0);
-            avgDeliveryMinutes = Math.round(totalMs / (1000 * 60 * deliveredOrders.length));
+            const totalMins = deliveredOrders.reduce((acc, o) => {
+                // Prefer pre-calculated deliveryTime, fallback to date diff
+                if (o.deliveryTime) return acc + o.deliveryTime;
+                return acc + Math.round((o.deliveredAt - o.outForDeliveryAt) / 60000);
+            }, 0);
+            avgDeliveryMinutes = Math.round(totalMins / deliveredOrders.length);
         }
 
         res.status(200).json({
@@ -185,6 +189,35 @@ router.get('/', protect, checkRole('Staff', 'Admin', 'Manager'), async (req, res
     }
 });
 
+// ── GET /staff-deliveries  –  Staff: returns orders grouped by status ──
+// ⚠️  MUST be defined BEFORE GET /:id to prevent Express route shadowing.
+router.get('/staff-deliveries', protect, checkRole('Staff'), async (req, res) => {
+    try {
+        if (!req.user || !req.user._id) {
+            return res.status(401).json({ message: 'Unauthorized: no user session.' });
+        }
+
+        console.log(`🛵 [staff-deliveries] user="${req.user.name}" (${req.user.email}) role=${req.user.role} id=${req.user._id}`);
+
+        const orders = await Order.find({ assignedTo: req.user._id })
+            .populate('user', 'name email')
+            .sort({ createdAt: -1 });
+
+        // Active = anything not yet completed or cancelled
+        const active = orders.filter(o =>
+            ['Placed', 'Processing', 'Out for Delivery'].includes(o.status)
+        );
+        const delivered = orders.filter(o => o.status === 'Delivered');
+
+        console.log(`   └─ found ${orders.length} total (${active.length} active, ${delivered.length} delivered)`);
+
+        res.status(200).json({ active, delivered });
+    } catch (err) {
+        console.error('❌ Error in GET /staff-deliveries:', err);
+        res.status(500).json({ message: 'Error fetching staff deliveries', detail: err.message });
+    }
+});
+
 // ── GET /:id  –  Single order ───────────────────────────────────
 router.get('/:id', protect, async (req, res) => {
     try {
@@ -198,23 +231,6 @@ router.get('/:id', protect, async (req, res) => {
         res.status(200).json(order);
     } catch (err) {
         res.status(500).json({ message: 'Error fetching order' });
-    }
-});
-
-// ── GET /staff-deliveries  –  Staff: returns orders grouped by status ──
-router.get('/staff-deliveries', protect, checkRole('Staff'), async (req, res) => {
-    try {
-        const orders = await Order.find({ assignedTo: req.user._id })
-            .populate('user', 'name email')
-            .sort({ createdAt: -1 });
-
-        const active = orders.filter(o => ['Processing', 'Out for Delivery'].includes(o.status));
-        const delivered = orders.filter(o => o.status === 'Delivered');
-
-        res.status(200).json({ active, delivered });
-    } catch (err) {
-        console.error('❌ Error in GET /staff-deliveries:', err);
-        res.status(500).json({ message: 'Error fetching staff deliveries', detail: err.message });
     }
 });
 
@@ -232,21 +248,32 @@ async function updateStatus(req, res) {
             return res.status(403).json({ message: 'This order is not assigned to you.' });
         }
 
-        if (req.user.role === 'Staff') {
-            const currentIdx = statusFlow.indexOf(order.status);
-            const nextIdx = statusFlow.indexOf(status);
-            if (nextIdx !== currentIdx + 1) return res.status(400).json({ message: `Staff can only advance one step at a time. Current: "${order.status}"` });
+        // Forward-only enforcement for ALL roles
+        const currentIdx = statusFlow.indexOf(order.status);
+        const nextIdx = statusFlow.indexOf(status);
+
+        if (order.status === 'Cancelled') {
+            return res.status(400).json({ message: 'Cancelled orders cannot be updated.' });
+        }
+        if (nextIdx <= currentIdx) {
+            return res.status(400).json({ message: `Cannot move backward. Current: "${order.status}". Status can only move forward.` });
+        }
+        if (req.user.role === 'Staff' && nextIdx !== currentIdx + 1) {
+            return res.status(400).json({ message: `Staff can only advance one step at a time. Current: "${order.status}"` });
         }
         order.status = status;
         if (deliveryPerson) order.deliveryPerson = deliveryPerson;
         if (assignedTo) order.assignedTo = assignedTo;
 
         // ── Timestamp Logic ──────────────────────────────────────
-        if (status === 'Out for Delivery' && !order.dispatchedAt) {
-            order.dispatchedAt = new Date();
+        if (status === 'Out for Delivery' && !order.outForDeliveryAt) {
+            order.outForDeliveryAt = new Date();
         }
         if (status === 'Delivered' && !order.deliveredAt) {
             order.deliveredAt = new Date();
+            if (order.outForDeliveryAt) {
+                order.deliveryTime = Math.max(1, Math.round((order.deliveredAt - order.outForDeliveryAt) / 60000));
+            }
         }
 
         const updated = await order.save();
@@ -275,8 +302,14 @@ router.patch('/:id/deliver', protect, checkRole('Staff'), async (req, res) => {
         if (order.status === 'Delivered') {
             return res.status(400).json({ message: 'Order is already delivered.' });
         }
+        
         order.status = 'Delivered';
-        if (!order.deliveredAt) order.deliveredAt = new Date();
+        if (!order.deliveredAt) {
+            order.deliveredAt = new Date();
+            if (order.outForDeliveryAt) {
+                order.deliveryTime = Math.max(1, Math.round((order.deliveredAt - order.outForDeliveryAt) / 60000));
+            }
+        }
         const updated = await order.save();
         const populated = await Order.findById(updated._id)
             .populate('user', 'name email')
@@ -302,11 +335,11 @@ router.patch('/:id/cancel', protect, async (req, res) => {
         if (order.user.toString() !== req.user._id.toString() && !['Admin', 'Manager', 'Staff'].includes(req.user.role)) {
             return res.status(403).json({ success: false, message: 'Not authorized to cancel this order.' });
         }
-        if (order.status !== 'Placed') {
+        if (!['Placed', 'Processing'].includes(order.status)) {
             return res.status(400).json({ success: false, message: `Order is already "${order.status}" and cannot be cancelled.` });
         }
         const elapsed = Date.now() - new Date(order.createdAt).getTime();
-        if (elapsed > CANCEL_WINDOW_MS) {
+        if (elapsed > CANCEL_WINDOW_MS && !['Admin', 'Manager', 'Staff'].includes(req.user.role)) {
             return res.status(400).json({ success: false, message: 'Cancellation window (5 minutes) has passed.' });
         }
 
@@ -325,6 +358,12 @@ router.patch('/:id/cancel', protect, async (req, res) => {
             sendOrderCancelled(cancelledUser.email, updated, cancelledUser.name).catch(e =>
                 console.warn('📧 Cancellation email failed (non-fatal):', e.message)
             );
+            // ── Refund email for Online Payment orders ─────────────
+            if (order.paymentMethod === 'Online Payment') {
+                sendRefundInitiated(cancelledUser.email, updated, cancelledUser.name, order.totalPrice).catch(e =>
+                    console.warn('📧 Refund email failed (non-fatal):', e.message)
+                );
+            }
         }
 
         console.log(`🚫 Order ${order._id} cancelled by ${req.user.email} (within window)`);
@@ -342,13 +381,38 @@ router.delete('/:id', protect, checkRole('Manager', 'Admin'), async (req, res) =
         const user = await User.findById(req.user._id);
         if (!user.pin) return res.status(403).json({ message: 'No PIN set. Contact Admin.' });
         const pinMatch = await bcrypt.compare(String(pin), user.pin);
-        if (!pinMatch) return res.status(401).json({ message: 'Wrong PIN. Order not deleted.' });
-        const deleted = await Order.findByIdAndDelete(req.params.id);
-        if (!deleted) return res.status(404).json({ message: 'Order not found' });
-        console.log(`🗑️  Order ${req.params.id} deleted by ${req.user.email}`);
-        res.status(200).json({ message: 'Order deleted ✅' });
+        if (!pinMatch) return res.status(401).json({ message: 'Wrong PIN. Order not cancelled.' });
+        
+        const order = await Order.findById(req.params.id);
+        if (!order) return res.status(404).json({ message: 'Order not found' });
+        if (!['Placed', 'Processing'].includes(order.status)) {
+            return res.status(400).json({ message: `Order is already ${order.status} and cannot be cancelled.` });
+        }
+
+        await Order.findByIdAndUpdate(req.params.id, { 
+            status: 'Cancelled', 
+            cancelledAt: Date.now() 
+        });
+        
+        // Restore stock
+        for (const item of order.orderItems) {
+            await Product.findByIdAndUpdate(item.product, { $inc: { countInStock: item.qty } });
+        }
+
+        console.log(`🚫 Order ${req.params.id} cancelled by ${req.user.email}`);
+
+        // ── Send cancellation + refund emails (non-blocking) ───────
+        const cancelledUser = await User.findById(order.user).select('name email');
+        if (cancelledUser) {
+            sendOrderCancelled(cancelledUser.email, order, cancelledUser.name).catch(() => {});
+            if (order.paymentMethod === 'Online Payment') {
+                sendRefundInitiated(cancelledUser.email, order, cancelledUser.name, order.totalPrice).catch(() => {});
+            }
+        }
+
+        res.status(200).json({ message: 'Order cancelled ✅' });
     } catch (err) {
-        res.status(500).json({ message: 'Server Error while deleting order' });
+        res.status(500).json({ message: 'Server Error while cancelling order' });
     }
 });
 
@@ -372,14 +436,37 @@ router.delete('/:id/override', protect, checkRole('Staff'), async (req, res) => 
             return res.status(401).json({ success: false, message: 'Unauthorized: Invalid Manager PIN' });
         }
 
-        const deleted = await Order.findByIdAndDelete(req.params.id);
-        if (!deleted) return res.status(404).json({ success: false, message: 'Order not found' });
+        const order = await Order.findById(req.params.id);
+        if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+        if (!['Placed', 'Processing'].includes(order.status)) {
+            return res.status(400).json({ success: false, message: `Order is already ${order.status} and cannot be cancelled.` });
+        }
+
+        await Order.findByIdAndUpdate(req.params.id, { 
+            status: 'Cancelled', 
+            cancelledAt: Date.now() 
+        });
+
+        // Restore stock
+        for (const item of order.orderItems) {
+            await Product.findByIdAndUpdate(item.product, { $inc: { countInStock: item.qty } });
+        }
         
-        console.log(`🗑️  Order ${req.params.id} overridden & deleted by ${req.user.email} using Manager PIN`);
-        res.status(200).json({ success: true, message: 'Order overridden and deleted successfully! ✅' });
+        console.log(`🚫 Order ${req.params.id} overridden & cancelled by ${req.user.email} using Manager PIN`);
+
+        // ── Send cancellation + refund emails (non-blocking) ───────
+        const cancelledUser = await User.findById(order.user).select('name email');
+        if (cancelledUser) {
+            sendOrderCancelled(cancelledUser.email, order, cancelledUser.name).catch(() => {});
+            if (order.paymentMethod === 'Online Payment') {
+                sendRefundInitiated(cancelledUser.email, order, cancelledUser.name, order.totalPrice).catch(() => {});
+            }
+        }
+
+        res.status(200).json({ success: true, message: 'Order overridden and cancelled successfully! ✅' });
     } catch (err) {
         console.error('Override Delete Error:', err);
-        res.status(500).json({ success: false, message: 'Server Error while overriding order deletion.' });
+        res.status(500).json({ success: false, message: 'Server Error while overriding order cancellation.' });
     }
 });
 

@@ -48,14 +48,19 @@ router.post('/', protect, checkRole('InventoryManager', 'Admin'), async (req, re
         const saved = await request.save();
         console.log(`🛒 Purchase request: ${material.name} × ${quantity} by ${req.user.email}`);
 
-        // ── Notify all InventorySellers (non-blocking) ─────────────────
-        User.find({ role: 'InventorySeller', status: 'Active' }).select('email name').then(sellers => {
-            sellers.forEach(seller =>
-                sendStockRequestAlert(seller.email, saved, material.name, req.user.name).catch(e =>
+        // ── Notify InventorySeller (non-blocking) using .env ───────────────
+        try {
+            const sellerEmail = process.env.INVENTORY_SELLER_EMAIL;
+            if (sellerEmail) {
+                sendStockRequestAlert(sellerEmail, saved, material.name, req.user.name).catch(e =>
                     console.warn('📧 Stock request alert failed (non-fatal):', e.message)
-                )
-            );
-        }).catch(() => {});
+                );
+            } else {
+                console.warn('⚠️ No INVENTORY_SELLER_EMAIL defined in .env');
+            }
+        } catch (mailErr) {
+            console.error('Mail trigger error:', mailErr);
+        }
 
         res.status(201).json({ message: 'Purchase request created ✅', request: saved });
     } catch (err) {
@@ -96,18 +101,29 @@ router.put('/:id/status', protect, checkRole('InventorySeller', 'Admin'), async 
             await historyEntry.save();
             await PurchaseRequest.findByIdAndDelete(request._id);
 
-            // ── Notify all InventoryManagers (non-blocking) ──────────
-            User.find({ role: 'InventoryManager', status: 'Active' }).then(managers => {
-                managers.forEach(mgr => {
-                    // Update flags for email & pulse
-                    mgr.unreadNotifications = true;
-                    mgr.save().catch(() => {});
+            // ── Notify InventoryManager (non-blocking) using .env ──────────
+            try {
+                // Update flags for email pulse notification UI
+                User.find({ role: 'InventoryManager', status: 'Active' })
+                    .then(managers => {
+                        managers.forEach(mgr => {
+                            mgr.unreadNotifications = true;
+                            mgr.save().catch(() => {});
+                        });
+                    })
+                    .catch(() => {});
 
-                    sendStockDispatchedAlert(mgr.email, request, materialName, req.user.name).catch(e =>
+                const managerEmail = process.env.INVENTORY_ALERT_EMAIL;
+                if (managerEmail) {
+                    sendStockDispatchedAlert(managerEmail, request, materialName, req.user.name).catch(e =>
                         console.warn('📧 Stock dispatch alert failed (non-fatal):', e.message)
                     );
-                });
-            }).catch(() => {});
+                } else {
+                    console.warn('⚠️ No INVENTORY_ALERT_EMAIL defined in .env');
+                }
+            } catch (mailErr) {
+                console.error('Mail trigger error:', mailErr);
+            }
 
             console.log(`💮 Purchase ${request._id} → Sent + stock updated (by ${req.user.email})`);
             return res.status(200).json({ message: `Marked as Sent ✅ — stock updated automatically!`, request: historyEntry });

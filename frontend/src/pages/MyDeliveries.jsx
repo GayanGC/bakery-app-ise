@@ -2,6 +2,7 @@
 // Staff-only portal: shows ONLY orders assigned to the logged-in staff member.
 // Provides stage-update workflow and live status monitoring.
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 
@@ -50,11 +51,12 @@ function OrderStepper({ status }) {
 
 export default function MyDeliveries() {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const [activeOrders, setActiveOrders] = useState([]);
     const [deliveredOrders, setDeliveredOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [actionLoading, setActionLoading] = useState(null); // orderId being acted on
+    const [actionLoading, setActionLoading] = useState(null);
     const [showDelivered, setShowDelivered] = useState(false);
     const [toast, setToast] = useState('');
 
@@ -66,11 +68,18 @@ export default function MyDeliveries() {
             setActiveOrders(data.active || []);
             setDeliveredOrders(data.delivered || []);
         } catch (e) {
+            const status = e.response?.status;
+            // Token expired or invalid — force re-login
+            if (status === 401 || status === 403) {
+                localStorage.clear();
+                navigate('/login');
+                return;
+            }
             setError(e.response?.data?.message || 'Failed to load your assignments.');
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [navigate]);
 
     useEffect(() => { fetchAssignments(); }, [fetchAssignments]);
 
@@ -223,6 +232,13 @@ export default function MyDeliveries() {
                                 {order.deliveryAddress && (
                                     <p className="mt-3 text-xs text-slate-400">
                                         📍 {order.deliveryAddress.street}, {order.deliveryAddress.city} {order.deliveryAddress.postalCode}
+                                    </p>
+                                )}
+
+                                {/* Delivery Time Taken */}
+                                {order.status === 'Delivered' && (order.deliveryTime || (order.outForDeliveryAt && order.deliveredAt)) && (
+                                    <p className="mt-3 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg inline-block shadow-sm">
+                                        ⏱️ Delivered in {order.deliveryTime || Math.max(1, Math.round((new Date(order.deliveredAt) - new Date(order.outForDeliveryAt)) / 60000))} mins
                                     </p>
                                 )}
 

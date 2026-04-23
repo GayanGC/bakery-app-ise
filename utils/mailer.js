@@ -2,13 +2,16 @@
 // Shared Nodemailer transporter — used by orderRoutes (confirmation) and inventoryRoutes (low-stock).
 // Configure via .env:
 //   EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASS, INVENTORY_ALERT_EMAIL
+require('dotenv').config();
 const nodemailer = require('nodemailer');
+
+const emailPort = parseInt(process.env.EMAIL_PORT || '587');
 
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     host:   process.env.EMAIL_HOST   || 'smtp.gmail.com',
-    port:   parseInt(process.env.EMAIL_PORT || '465'),
-    secure: true,
+    port:   emailPort,
+    secure: emailPort === 465,  // true for 465 (SSL), false for 587 (STARTTLS)
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
@@ -137,7 +140,7 @@ async function sendOrderConfirmation(toEmail, order, customerName) {
  * Send a low-stock alert email.
  */
 async function sendLowStockAlert(material) {
-    const to = process.env.INVENTORY_ALERT_EMAIL;
+    const to = process.env.INVENTORY_ALERT_EMAIL || 'your-backup-email@gmail.com';
     if (!process.env.EMAIL_USER || !to) return;
 
     const html = `
@@ -298,6 +301,61 @@ async function sendOrderCancelled(toEmail, order, customerName) {
         });
     } catch (e) {
         console.log(`⚠️ Mailer failed for order cancellation:`, e.message);
+    }
+}
+
+/**
+ * Send a refund initiation email to the customer (Online Payment cancellations).
+ */
+async function sendRefundInitiated(toEmail, order, customerName, amount) {
+    if (!process.env.EMAIL_USER) {
+        console.warn('⚠️ sendRefundInitiated skipped: EMAIL_USER not set in .env');
+        return;
+    }
+
+    const orderId = String(order._id).slice(-8).toUpperCase();
+    console.log(`💰 Preparing refund email → ${toEmail} | Order #${orderId} | Rs.${amount}`);
+
+    const html = `
+    <div style="${baseStyles}">
+        <div style="${containerStyles}">
+            <div style="${headerStyles('#0369a1')}">
+                <h1 style="color:#ffffff; margin:0; font-size:24px; font-weight:800; letter-spacing:-0.025em;">Refund Process Initiated</h1>
+                <p style="color:#bae6fd; margin:8px 0 0; font-size:14px;">Order #${orderId}</p>
+            </div>
+            <div style="${bodyStyles}">
+                <p style="margin:0 0 16px;">Dear <strong>${customerName}</strong>,</p>
+                <p style="margin:0 0 16px; font-size:14px; color:#475569;">Your order <strong>#${orderId}</strong> has been cancelled. Since you made an online payment of <strong style="color:#0369a1; font-size:16px;">Rs. ${Number(amount).toLocaleString()}</strong>, we have initiated your refund.</p>
+                
+                <div style="background:#f0f9ff; border-radius:12px; padding:24px; border:1px solid #bae6fd; margin:24px 0;">
+                    <p style="font-size:14px; color:#0c4a6e; font-weight:700; margin:0 0 12px;">📋 Action Required</p>
+                    <p style="font-size:13px; color:#0369a1; margin:0;">Please reply to this email with the following details to complete your refund:</p>
+                    <ul style="font-size:13px; color:#475569; margin:12px 0 0; padding-left:20px; line-height:2;">
+                        <li><strong>Bank Name</strong></li>
+                        <li><strong>Branch</strong></li>
+                        <li><strong>Account Number</strong></li>
+                        <li><strong>Account Holder Name</strong></li>
+                    </ul>
+                </div>
+
+                <p style="margin:0; font-size:12px; color:#94a3b8; text-align:center;">Refunds are typically processed within 3–5 business days after receiving your details.</p>
+            </div>
+            <div style="${footerStyles}">
+                <p style="margin:0;">Sweet Delights Finance Team</p>
+            </div>
+        </div>
+    </div>`;
+
+    try {
+        await transporter.sendMail({
+            from: `"Sweet Delights Finance" <${process.env.EMAIL_USER}>`,
+            to: toEmail,
+            subject: `Refund Process Initiated - Order #${orderId}`,
+            html,
+        });
+        console.log(`✅ Refund email sent successfully to ${toEmail} for Order #${orderId}`);
+    } catch (e) {
+        console.error(`❌ Refund email FAILED for Order #${orderId}:`, e.message);
     }
 }
 
@@ -471,6 +529,7 @@ module.exports = {
     sendPasswordResetOtp,
     sendOrderDelivered,
     sendOrderCancelled,
+    sendRefundInitiated,
     sendStockRequestAlert,
     sendStockDispatchedAlert,
     sendMonthlyReportEmail

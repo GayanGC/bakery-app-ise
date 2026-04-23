@@ -1,7 +1,7 @@
 // frontend/src/components/Navbar.jsx
 // Global role-aware navbar — mounted in App.jsx layout wrapper, visible on every authenticated page.
 // All 6 roles: Customer, Staff, Manager, Admin, InventoryManager, InventorySeller
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -89,13 +89,15 @@ export default function Navbar() {
     const links = user ? (roleLinks[user.role] || []) : [];
 
     // ── Fetch pending stock requests for Inventory roles ─────────
-    useState(() => {
-        if (user && (user.role === 'InventoryManager' || user.role === 'InventorySeller')) {
-            api.get('/purchases').then(({ data }) => {
+    useEffect(() => {
+        if (!user || (user.role !== 'InventoryManager' && user.role !== 'InventorySeller')) return;
+        (async () => {
+            try {
+                const { data } = await api.get('/purchases');
                 const pending = data.filter(r => r.status === 'Pending' || r.status === 'Sent').length;
                 setPendingRequests(pending);
-            }).catch(() => { });
-        }
+            } catch { /* non-fatal: badge stays at 0 */ }
+        })();
     }, [user]);
 
     const handleLogout = () => { logout(); navigate('/login'); setMenuOpen(false); };

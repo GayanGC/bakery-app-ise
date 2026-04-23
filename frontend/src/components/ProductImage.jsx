@@ -20,14 +20,21 @@ export default function ProductImage({
     }
 
     // Process the source URL
-    // If it's a relative path starting with /uploads, prepend the backend URL
-    // Otherwise assume it's an absolute URL (like a placeholder or external link)
-    const imageUrl = src.startsWith('/uploads') ? `${API_BASE_URL}${src}` : src;
+    let imageUrl = src;
+    if (src.includes('uploads/')) {
+        // Ensure '/uploads/...' format
+        const cleanPath = src.substring(src.indexOf('uploads/'));
+        imageUrl = `${API_BASE_URL}/${cleanPath}`;
+    } else if (!src.startsWith('http')) {
+        // Fallback for unexpected missing protocols
+        imageUrl = `https://${src}`;
+    }
 
     if (error) {
         return (
-            <div className={`bg-brand-100 flex items-center justify-center text-brand-400 font-semibold ${className}`}>
-                {fallbackText}
+            <div className={`bg-brand-100 flex flex-col items-center justify-center text-brand-400 font-semibold p-4 text-center ${className}`}>
+                <span className="text-4xl mb-2">🧁</span>
+                <span className="text-sm">{fallbackText}</span>
             </div>
         );
     }
@@ -38,7 +45,6 @@ export default function ProductImage({
             alt={alt} 
             className={className}
             onError={() => setError(true)}
-            crossOrigin="anonymous" // Helpful if the backend sends CORS headers for images
         />
     );
 }
